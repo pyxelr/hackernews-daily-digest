@@ -11,6 +11,10 @@ No servers, no paid services, no n8n. Just a **GitHub Action** on a cron schedul
   <em>Top-N stories · AI summaries by Google Gemini · delivered over Gmail SMTP</em>
 </p>
 
+<p align="center">
+  <img src="docs/example-email.png" alt="Example Hacker News Daily digest email" width="640">
+</p>
+
 ---
 
 ## Why it's free
@@ -28,7 +32,7 @@ No servers, no paid services, no n8n. Just a **GitHub Action** on a cron schedul
 ## How it works
 
 ```
-GitHub Actions (cron, ~06:17 Poland time)
+GitHub Actions (cron, ~05:17 Poland time)
         │
         ▼
   main.py  ──▶  Hacker News API      (top 30 stories + top comments)
@@ -85,12 +89,12 @@ Go to **Actions → Daily HN Digest → Run workflow**.
 - Leave it unticked to send a real email.
 
 ### 6. Done
-It now runs automatically every day at **≈ 06:17 Poland time**, year-round.
+It now runs automatically every day at **≈ 05:17 Poland time**, year-round.
 
 > **How the timing survives daylight saving:** GitHub cron is UTC-only and
-> ignores DST, so the workflow schedules *two* UTC times (`04:17` and `05:17`)
-> and a guard (`RUN_ONLY_AT_LOCAL_HOUR=6`) lets only the run that actually lands
-> on 06:xx in `DISPLAY_TIMEZONE` proceed — the other exits in seconds. To change
+> ignores DST, so the workflow schedules *two* UTC times (`03:17` and `04:17`)
+> and a guard (`RUN_ONLY_AT_LOCAL_HOUR=5`) lets only the run that actually lands
+> on 05:xx in `DISPLAY_TIMEZONE` proceed — the other exits in seconds. To change
 > the time, edit the two `cron` lines and the guard hour in
 > [`.github/workflows/daily-digest.yml`](.github/workflows/daily-digest.yml)
 > (times there are **UTC** — [crontab.guru](https://crontab.guru) helps).
@@ -110,6 +114,24 @@ DRY_RUN=true python main.py
 # Send for real
 python main.py
 ```
+
+## Trigger a run manually
+
+You don't have to wait for the daily schedule — you can run it any time:
+
+**From GitHub (no setup needed):** open **Actions → Daily HN Digest → Run
+workflow**. Tick **Dry run** to build a downloadable HTML artifact without
+sending, or leave it unticked to send a real email.
+
+**From your terminal** (needs the [`gh` CLI](https://cli.github.com/)):
+
+```bash
+gh workflow run "Daily HN Digest" -f dry_run=true    # preview (no email)
+gh workflow run "Daily HN Digest"                    # send for real
+```
+
+> Manual runs always execute immediately and **bypass the daylight-saving guard**
+> (that guard only applies to the scheduled cron runs).
 
 ## Configuration
 
