@@ -130,8 +130,7 @@ def render_html(
           <tr>
             <td style="padding:13px 20px 12px;border-bottom:1px solid #ececec;">
               <span style="font-size:15px;font-weight:700;color:#333;">Top {len(stories)} stories</span>
-              <span style="font-size:12px;color:#9a9a9a;float:right;padding-top:3px;">highest points first</span>
-              <div style="font-size:12px;color:#828282;margin-top:4px;">Covering {coverage}</div>
+              <span style="font-size:12px;color:#9a9a9a;float:right;padding-top:3px;">Covering {coverage}</span>
             </td>
           </tr>
           {rows}
