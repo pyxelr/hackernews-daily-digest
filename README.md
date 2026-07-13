@@ -11,9 +11,35 @@ No servers, no paid services, no n8n. Just a **GitHub Action** on a cron schedul
   <em>Top-N stories · AI summaries by Google Gemini · delivered over Gmail SMTP</em>
 </p>
 
+📄 **[See a sample](https://htmlpreview.github.io/?https://github.com/pyxelr/hackernews-daily-digest/blob/main/docs/example-digest.html)** (generated from the [.html file](docs/example-digest.html)).
+
 <p align="center">
   <img src="docs/example-email.png" alt="Example Hacker News Daily digest email" width="640">
 </p>
+
+## Project structure
+
+```text
+.
+├── .github/workflows/          # GitHub Actions (daily cron + manual dispatch)
+│   └── daily-digest.yml
+├── docs/
+│   ├── example-email.png       # Screenshot shown in this README
+│   └── example-digest.html     # Sample rendered email (open in a browser)
+├── src/
+│   ├── config.py               # Env-based configuration
+│   ├── hn_client.py            # Hacker News API client (stories + comments)
+│   ├── article_fetcher.py      # Best-effort article text extraction
+│   ├── summarizer.py           # Gemini summaries (batched, paced + retried)
+│   ├── schedule.py             # Reads the workflow cron -> "next run" time
+│   ├── email_renderer.py       # HTML email template
+│   ├── mailer.py               # Gmail SMTP sender
+│   └── list_models.py          # Helper: list models your API key supports
+├── main.py                     # Orchestrator (fetch -> summarize -> send)
+├── requirements.txt            # Python dependencies
+├── .env.example                # Template for local environment variables
+└── README.md                   # This file
+```
 
 ---
 
@@ -73,7 +99,7 @@ In your repo: **Settings → Secrets and variables → Actions → New repositor
 | `RECIPIENTS` | *(optional)* comma-separated recipients; defaults to `GMAIL_USERNAME` |
 
 Optional **Variables** (same page, *Variables* tab) to tweak without editing code:
-`NUM_STORIES` (default `30`), `GEMINI_MODEL` (default `gemini-3.5-flash`).
+`NUM_STORIES` (default `30`), `GEMINI_MODEL` (default [`gemini-3.5-flash`](https://ai.google.dev/gemini-api/docs/models/gemini-3.5-flash)).
 
 > **Model not available?** Gemini model IDs change over time. If a run fails with
 > a `404 ... model is no longer available` error, list what your key supports and
@@ -154,21 +180,6 @@ All settings are environment variables (see [`.env.example`](.env.example)):
 | `FETCH_ARTICLES` | `true` | Also fetch article bodies for context |
 | `REQUEST_DELAY_SECONDS` | `6` | Pause between Gemini batches (free-tier pacing) |
 | `DRY_RUN` | `false` | Write HTML file instead of emailing |
-
-## Project layout
-
-```
-main.py                     Orchestrator
-src/config.py               Env-based configuration
-src/hn_client.py            Hacker News API client
-src/article_fetcher.py      Best-effort article text extraction
-src/summarizer.py           Gemini summaries (batched, paced + retried)
-src/schedule.py             Reads the workflow cron -> "next run" time
-src/list_models.py          Helper: list models your API key supports
-src/email_renderer.py       HTML email template
-src/mailer.py               Gmail SMTP sender
-.github/workflows/          Daily cron workflow
-```
 
 ## Notes & troubleshooting
 
