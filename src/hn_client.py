@@ -69,8 +69,14 @@ def get_item(item_id: int) -> dict | None:
 
 
 def get_stories(limit: int, min_score: int = 0) -> list[Story]:
-    """Fetch and hydrate the top stories, filtered by score and ranked."""
-    ids = get_top_story_ids(limit * 2 if min_score else limit)
+    """Return the top ``limit`` stories, sorted by score (highest first).
+
+    HN's ``topstories`` ranking factors in time-decay, so it is not strictly
+    ordered by points. We hydrate a larger candidate pool and then sort by score
+    ourselves so the digest is a true "top N by points".
+    """
+    pool_size = min(max(limit * 2, limit + 20), 100)
+    ids = get_top_story_ids(pool_size)
 
     with ThreadPoolExecutor(max_workers=12) as pool:
         items = list(pool.map(get_item, ids))
@@ -94,10 +100,10 @@ def get_stories(limit: int, min_score: int = 0) -> list[Story]:
                 kids=item.get("kids", []),
             )
         )
-        if len(stories) >= limit:
-            break
 
-    return stories
+    # Sort by points (descending), tie-break by comment count, then recency.
+    stories.sort(key=lambda s: (s.score, s.descendants, s.time), reverse=True)
+    return stories[:limit]
 
 
 def _clean_comment(text: str) -> str:

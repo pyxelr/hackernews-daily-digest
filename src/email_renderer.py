@@ -7,7 +7,7 @@ reliably across email clients (Gmail, Outlook, Apple Mail).
 from __future__ import annotations
 
 import html
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from .hn_client import Story
@@ -91,8 +91,14 @@ def render_html(
     now = generated_at or datetime.now(tz=timezone.utc)
     tz = _resolve_tz(tz_name)
     local_now = now.astimezone(tz)
-    date_label = local_now.strftime("%a, %-d %b %Y")
-    time_label = f"{local_now.strftime('%H:%M')} {tz_label or local_now.strftime('%Z')}".rstrip()
+    abbrev = tz_label or local_now.strftime("%Z")
+    # The digest is a daily edition; it covers roughly the 24h up to now.
+    window_start = (now - timedelta(hours=24)).astimezone(tz)
+    edition_day = local_now.strftime("%A, %-d %b %Y")  # e.g. "Tuesday, 14 Jul 2026"
+    coverage = (
+        f"{window_start.strftime('%-d %b, %H:%M')} &ndash; "
+        f"{local_now.strftime('%-d %b, %H:%M')} {abbrev}"
+    ).strip()
 
     rows = "\n".join(
         _story_block(rank, story, summaries.get(story.id, ""), now)
@@ -118,12 +124,14 @@ def render_html(
           <tr>
             <td style="background:{_HN_ORANGE};padding:14px 20px;">
               <span style="color:#ffffff;font-size:18px;font-weight:800;letter-spacing:.2px;">Hacker News Daily</span>
-              <span style="color:#ffe9d6;font-size:13px;float:right;padding-top:4px;">{date_label} &middot; {time_label}</span>
+              <span style="color:#fff4ea;font-size:13px;font-weight:600;float:right;padding-top:4px;">{_e(edition_day)}</span>
             </td>
           </tr>
           <tr>
-            <td style="padding:14px 20px 4px;">
-              <span style="font-size:15px;font-weight:700;color:#333;">{len(stories)} Top Stories</span>
+            <td style="padding:13px 20px 12px;border-bottom:1px solid #ececec;">
+              <span style="font-size:15px;font-weight:700;color:#333;">Top {len(stories)} stories</span>
+              <span style="font-size:12px;color:#9a9a9a;float:right;padding-top:3px;">highest points first</span>
+              <div style="font-size:12px;color:#828282;margin-top:4px;">Covering {coverage}</div>
             </td>
           </tr>
           {rows}
