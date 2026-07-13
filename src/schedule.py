@@ -11,6 +11,7 @@ from __future__ import annotations
 import re
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 _PROJECT_ROOT = Path(__file__).resolve().parents[1]
 _WORKFLOW = _PROJECT_ROOT / ".github" / "workflows" / "daily-digest.yml"
@@ -21,15 +22,20 @@ _CRON_RE = re.compile(r"^\s*-?\s*cron:\s*['\"]?([^'\"#\n]+?)['\"]?\s*$", re.MULT
 _FIELD_RANGES = [(0, 59), (0, 23), (1, 31), (1, 12), (0, 7)]
 
 
-def read_cron(path: Path | None = None) -> str | None:
-    """Return the first ``cron:`` expression from the workflow file, if any."""
+def read_crons(path: Path | None = None) -> list[str]:
+    """Return every ``cron:`` expression from the workflow file."""
     wf = path or _WORKFLOW
     try:
         text = wf.read_text(encoding="utf-8")
     except OSError:
-        return None
-    match = _CRON_RE.search(text)
-    return match.group(1).strip() if match else None
+        return []
+    return [m.strip() for m in _CRON_RE.findall(text)]
+
+
+def read_cron(path: Path | None = None) -> str | None:
+    """Return the first ``cron:`` expression from the workflow file, if any."""
+    crons = read_crons(path)
+    return crons[0] if crons else None
 
 
 def _parse_field(field: str, lo: int, hi: int) -> set[int] | None:
@@ -96,3 +102,33 @@ def next_run_utc(cron: str | None, after: datetime) -> datetime | None:
         # Advance to the start of the next day.
         cursor = datetime(day.year, day.month, day.day, tzinfo=timezone.utc) + timedelta(days=1)
     return None
+
+
+def next_effective_run(
+    after: datetime,
+    tz_name: str = "UTC",
+    guard_local_hour: int | None = None,
+    path: Path | None = None,
+) -> datetime | None:
+    """Next run that will actually send, across all workflow crons.
+
+    With the DST guard, several UTC crons are scheduled but only the one landing
+    on ``guard_local_hour`` in ``tz_name`` proceeds. This returns the earliest
+    upcoming run that passes that guard (or just the earliest run if no guard).
+    """
+    candidates = [
+        run for cron in read_crons(path) if (run := next_run_utc(cron, after)) is not None
+    ]
+    if not candidates:
+        return None
+
+    if guard_local_hour is not None:
+        try:
+            tz = ZoneInfo(tz_name)
+            matching = [c for c in candidates if c.astimezone(tz).hour == guard_local_hour]
+            if matching:
+                candidates = matching
+        except (ZoneInfoNotFoundError, ValueError):
+            pass
+
+    return min(candidates)

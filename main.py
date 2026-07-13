@@ -95,7 +95,12 @@ def main() -> int:
     config.validate(require_email=not config.dry_run)
 
     stories, summaries, now = build_digest()
-    next_run = schedule.next_run_utc(schedule.read_cron(), now)
+    guard_hour = (
+        int(config.run_only_at_local_hour)
+        if config.run_only_at_local_hour.strip().isdigit()
+        else None
+    )
+    next_run = schedule.next_effective_run(now, config.display_timezone, guard_hour)
     html_body = render_html(
         stories,
         summaries,
