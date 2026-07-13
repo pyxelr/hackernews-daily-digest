@@ -2,12 +2,15 @@ name: Daily HN Digest
 
 on:
   schedule:
-    # 06:17 UTC daily. GitHub queues scheduled jobs on a best-effort basis and
-    # delays them heavily on the hour, so we use an off-peak minute.
-    #   -> ~08:17 in Poland during summer (CEST, UTC+2)
-    #   -> ~07:17 in Poland during winter (CET,  UTC+1)
-    # Adjust the hour to taste; times are always UTC. https://crontab.guru
-    - cron: "17 6 * * *"
+    # Goal: fire at ~06:17 Poland time every day. GitHub cron is UTC-only and
+    # does NOT follow daylight saving, so we schedule BOTH candidate UTC times
+    # and let the job's DST guard (RUN_ONLY_AT_LOCAL_HOUR=6) run only the one
+    # that actually lands on 06:xx in Europe/Warsaw:
+    #   - 04:17 UTC -> 06:17 CEST (summer, UTC+2)
+    #   - 05:17 UTC -> 06:17 CET  (winter, UTC+1)
+    # The off-hour :17 minute reduces GitHub's peak-load scheduling delay.
+    - cron: "17 4 * * *"
+    - cron: "17 5 * * *"
   # Lets you run it on demand from the Actions tab (great for the first test).
   workflow_dispatch:
     inputs:
@@ -29,10 +32,18 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-          cache: pip
+
+      # uv installs from a warm cache in a couple of seconds (much faster than
+      # pip). The cache is keyed on requirements.txt, so it only re-downloads
+      # when dependencies actually change.
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+          cache-dependency-glob: requirements.txt
 
       - name: Install dependencies
-        run: pip install -r requirements.txt
+        run: uv pip install --system -r requirements.txt
 
       - name: Build and send digest
         env:
@@ -42,6 +53,12 @@ jobs:
           GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
           RECIPIENTS: ${{ secrets.RECIPIENTS }}
           NUM_STORIES: ${{ vars.NUM_STORIES || '30' }}
+          DISPLAY_TIMEZONE: ${{ vars.DISPLAY_TIMEZONE || 'Europe/Warsaw' }}
+          # Empty label = accurate DST-aware abbreviation (CET / CEST).
+          DISPLAY_TZ_LABEL: ${{ vars.DISPLAY_TZ_LABEL || '' }}
+          # DST guard: with the two cron times above, only the run that lands on
+          # 06:xx Warsaw time proceeds; the other exits early. Manual runs ignore it.
+          RUN_ONLY_AT_LOCAL_HOUR: "6"
           DRY_RUN: ${{ inputs.dry_run }}
         run: python main.py
 

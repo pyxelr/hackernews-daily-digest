@@ -8,10 +8,30 @@ from __future__ import annotations
 
 import html
 from datetime import datetime, timezone
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from .hn_client import Story
 
 _HN_ORANGE = "#ff6600"
+
+
+def _resolve_tz(tz_name: str):
+    try:
+        return ZoneInfo(tz_name)
+    except (ZoneInfoNotFoundError, ValueError):
+        return timezone.utc
+
+
+def _fmt_dt(dt: datetime, tz, tz_label: str = "") -> str:
+    """Full human timestamp, e.g. 'Mon, 13 Jul 2026, 08:17 CET'.
+
+    When ``tz_label`` is given it overrides the automatic abbreviation (which
+    would otherwise switch between e.g. CET/CEST across daylight saving).
+    """
+    local = dt.astimezone(tz)
+    label = tz_label or local.strftime("%Z")
+    # %-d (no leading zero) is supported on Linux/macOS; the CI runner is Linux.
+    return f"{local.strftime('%a, %-d %b %Y, %H:%M')} {label}".rstrip()
 
 
 def _time_ago(unix_ts: int, now: datetime) -> str:
@@ -60,14 +80,31 @@ def _story_block(rank: int, story: Story, summary: str, now: datetime) -> str:
         </tr>"""
 
 
-def render_html(stories: list[Story], summaries: dict[int, str], generated_at: datetime | None = None) -> str:
+def render_html(
+    stories: list[Story],
+    summaries: dict[int, str],
+    generated_at: datetime | None = None,
+    next_run: datetime | None = None,
+    tz_name: str = "UTC",
+    tz_label: str = "",
+) -> str:
     now = generated_at or datetime.now(tz=timezone.utc)
-    date_label = now.strftime("%a, %-d %b %Y") if hasattr(now, "strftime") else ""
+    tz = _resolve_tz(tz_name)
+    local_now = now.astimezone(tz)
+    date_label = local_now.strftime("%a, %-d %b %Y")
+    time_label = f"{local_now.strftime('%H:%M')} {tz_label or local_now.strftime('%Z')}".rstrip()
 
     rows = "\n".join(
         _story_block(rank, story, summaries.get(story.id, ""), now)
         for rank, story in enumerate(stories, start=1)
     )
+
+    next_run_html = ""
+    if next_run is not None:
+        next_run_html = (
+            f'<br>Next scheduled run &asymp; {_e(_fmt_dt(next_run, tz, tz_label))} '
+            f'<span style="color:#bbb;">(GitHub may delay it a few minutes)</span>'
+        )
 
     return f"""\
 <!DOCTYPE html>
@@ -81,7 +118,7 @@ def render_html(stories: list[Story], summaries: dict[int, str], generated_at: d
           <tr>
             <td style="background:{_HN_ORANGE};padding:14px 20px;">
               <span style="color:#ffffff;font-size:18px;font-weight:800;letter-spacing:.2px;">Hacker News Daily</span>
-              <span style="color:#ffe9d6;font-size:13px;float:right;padding-top:4px;">{date_label}</span>
+              <span style="color:#ffe9d6;font-size:13px;float:right;padding-top:4px;">{date_label} &middot; {time_label}</span>
             </td>
           </tr>
           <tr>
@@ -93,9 +130,10 @@ def render_html(stories: list[Story], summaries: dict[int, str], generated_at: d
           <tr>
             <td style="padding:18px 20px;background:#fafafa;border-top:1px solid #ececec;">
               <div style="font-size:12px;color:#9a9a9a;line-height:1.6;">
-                Generated automatically from the
+                Generated {_e(_fmt_dt(now, tz, tz_label))} from the
                 <a href="https://news.ycombinator.com/news" style="color:{_HN_ORANGE};text-decoration:none;">Hacker News</a>
-                top-stories API, with summaries by Google Gemini.<br>
+                top-stories API, with summaries by Google Gemini.
+                Ages like &ldquo;3h ago&rdquo; are relative to that time.{next_run_html}<br>
                 Source: <a href="https://github.com/pyxelr/hackernews-daily-digest" style="color:{_HN_ORANGE};text-decoration:none;">github.com/pyxelr/hackernews-daily-digest</a>
               </div>
             </td>

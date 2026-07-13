@@ -7,16 +7,46 @@ Run locally:
 
 from __future__ import annotations
 
+import os
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from src import hn_client
+from src import hn_client, schedule
 from src.article_fetcher import fetch_many
 from src.config import config
 from src.email_renderer import render_html, render_subject
 from src.mailer import send_email
 from src.summarizer import Summarizer
+
+
+def should_skip_this_run() -> bool:
+    """For scheduled runs, skip unless it's the target local hour.
+
+    The workflow schedules two UTC times so one always lands on the target local
+    hour regardless of daylight saving; this lets only that one proceed. Manual
+    (workflow_dispatch) runs and local runs always proceed.
+    """
+    target = config.run_only_at_local_hour.strip()
+    if not target or not target.isdigit():
+        return False
+    # Only guard actual cron runs; always allow manual (workflow_dispatch) and
+    # local runs (where GITHUB_EVENT_NAME is unset).
+    if os.getenv("GITHUB_EVENT_NAME", "") != "schedule":
+        return False
+    try:
+        tz = ZoneInfo(config.display_timezone)
+    except (ZoneInfoNotFoundError, ValueError):
+        return False
+    local_hour = datetime.now(tz=tz).hour
+    if local_hour != int(target):
+        print(
+            f"Skipping: local hour is {local_hour:02d} in {config.display_timezone}, "
+            f"target is {int(target):02d} (DST guard)."
+        )
+        return True
+    return False
 
 
 def build_digest() -> tuple[list[hn_client.Story], dict[int, str], datetime]:
@@ -59,10 +89,21 @@ def build_digest() -> tuple[list[hn_client.Story], dict[int, str], datetime]:
 
 
 def main() -> int:
+    if should_skip_this_run():
+        return 0
+
     config.validate(require_email=not config.dry_run)
 
     stories, summaries, now = build_digest()
-    html_body = render_html(stories, summaries, now)
+    next_run = schedule.next_run_utc(schedule.read_cron(), now)
+    html_body = render_html(
+        stories,
+        summaries,
+        now,
+        next_run=next_run,
+        tz_name=config.display_timezone,
+        tz_label=config.display_tz_label,
+    )
     subject = render_subject(stories, now)
 
     if config.dry_run:

@@ -28,7 +28,7 @@ No servers, no paid services, no n8n. Just a **GitHub Action** on a cron schedul
 ## How it works
 
 ```
-GitHub Actions (cron, ~08:00)
+GitHub Actions (cron, ~06:17 Poland time)
         │
         ▼
   main.py  ──▶  Hacker News API      (top 30 stories + top comments)
@@ -85,9 +85,15 @@ Go to **Actions → Daily HN Digest → Run workflow**.
 - Leave it unticked to send a real email.
 
 ### 6. Done
-It now runs automatically every day. Adjust the time by editing the `cron` line
-in [`.github/workflows/daily-digest.yml`](.github/workflows/daily-digest.yml)
-(times are **UTC** — use [crontab.guru](https://crontab.guru)).
+It now runs automatically every day at **≈ 06:17 Poland time**, year-round.
+
+> **How the timing survives daylight saving:** GitHub cron is UTC-only and
+> ignores DST, so the workflow schedules *two* UTC times (`04:17` and `05:17`)
+> and a guard (`RUN_ONLY_AT_LOCAL_HOUR=6`) lets only the run that actually lands
+> on 06:xx in `DISPLAY_TIMEZONE` proceed — the other exits in seconds. To change
+> the time, edit the two `cron` lines and the guard hour in
+> [`.github/workflows/daily-digest.yml`](.github/workflows/daily-digest.yml)
+> (times there are **UTC** — [crontab.guru](https://crontab.guru) helps).
 
 ---
 
@@ -120,6 +126,9 @@ All settings are environment variables (see [`.env.example`](.env.example)):
 | `MIN_SCORE` | `0` | Skip stories below this score |
 | `MAX_COMMENTS` | `6` | Top comments fed to the summarizer |
 | `BATCH_SIZE` | `8` | Stories summarized per Gemini request |
+| `DISPLAY_TIMEZONE` | `Europe/Warsaw` | Timezone for timestamps shown in the email |
+| `DISPLAY_TZ_LABEL` | *(empty)* | Force a fixed tz label; empty = DST-aware (CET/CEST) |
+| `RUN_ONLY_AT_LOCAL_HOUR` | *(empty)* | DST guard: only run at this local hour on schedule |
 | `FETCH_ARTICLES` | `true` | Also fetch article bodies for context |
 | `REQUEST_DELAY_SECONDS` | `6` | Pause between Gemini batches (free-tier pacing) |
 | `DRY_RUN` | `false` | Write HTML file instead of emailing |
@@ -132,6 +141,7 @@ src/config.py               Env-based configuration
 src/hn_client.py            Hacker News API client
 src/article_fetcher.py      Best-effort article text extraction
 src/summarizer.py           Gemini summaries (batched, paced + retried)
+src/schedule.py             Reads the workflow cron -> "next run" time
 src/list_models.py          Helper: list models your API key supports
 src/email_renderer.py       HTML email template
 src/mailer.py               Gmail SMTP sender
@@ -150,7 +160,3 @@ src/mailer.py               Gmail SMTP sender
 - **Email in spam?** Mark it "not spam" once; sending to yourself is very reliable.
 - **Scheduled runs can be delayed** a few minutes by GitHub during peak load — a
   known GitHub Actions behaviour, not a bug here.
-
-## License
-
-[MIT](LICENSE) © 2026 pyxelr

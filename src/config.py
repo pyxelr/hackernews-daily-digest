@@ -70,6 +70,24 @@ class Config:
     )
     max_retries: int = field(default_factory=lambda: _get_int("MAX_RETRIES", 4))
 
+    # --- Display ---
+    # IANA timezone for timestamps shown in the email (e.g. "Europe/Warsaw",
+    # "America/New_York", "UTC"). https://en.wikipedia.org/wiki/List_of_tz_database_time_zones
+    display_timezone: str = field(default_factory=lambda: os.getenv("DISPLAY_TIMEZONE", "Europe/Warsaw"))
+    # Optional fixed timezone abbreviation shown next to times. Empty (default)
+    # uses the automatic, DST-aware abbreviation (e.g. CET in winter, CEST in
+    # summer) which is the accurate label. Set a value only to force it.
+    display_tz_label: str = field(default_factory=lambda: os.getenv("DISPLAY_TZ_LABEL", ""))
+
+    # --- Scheduling guard (DST handling) ---
+    # GitHub cron is UTC-only and ignores daylight saving. To fire at a fixed
+    # *local* hour year-round, the workflow schedules two UTC times (one per DST
+    # offset) and this guard lets only the run that lands on the target local
+    # hour proceed. Empty = no guard (always run).
+    run_only_at_local_hour: str = field(
+        default_factory=lambda: os.getenv("RUN_ONLY_AT_LOCAL_HOUR", "")
+    )
+
     # --- Run mode ---
     # When true, write the rendered email to output/ instead of sending it.
     dry_run: bool = field(default_factory=lambda: _get_bool("DRY_RUN", False))
