@@ -1,0 +1,22 @@
+# Secrets
+.env
+.env.local
+
+# Generated output
+output/
+*.html
+!src/**/*.html
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+env/
+.pytest_cache/
+*.egg-info/
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
