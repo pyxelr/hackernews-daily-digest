@@ -1,97 +1,150 @@
-"""Generate a brief digest summary for each story using Google Gemini.
+"""Generate brief digest summaries for stories using Google Gemini.
 
-Uses the current unified `google-genai` SDK. The prompt blends the article text
-(when available) with the top HN comments so the summary captures both what the
-piece says and how the community reacted -- mirroring the reference newsletter.
+Uses the current unified `google-genai` SDK. To stay well under the free-tier
+per-minute request limits, stories are summarized in *batches*: one request
+returns summaries for several stories at once (structured JSON output), so 30
+stories cost ~4 requests instead of 30.
+
+The prompt blends each article's text (when available) with its top HN comments
+so the summary captures both what the piece says and how the community reacted --
+mirroring the reference newsletter.
 """
 
 from __future__ import annotations
 
+import json
 import time
 
 from google import genai
 from google.genai import errors as genai_errors
+from google.genai import types
 
 from .hn_client import Story
 
-_PROMPT_TEMPLATE = """\
+_SYSTEM_INSTRUCTION = """\
 You write one-paragraph summaries for a "Hacker News Daily" email digest.
 
-Write a single, information-dense paragraph (2-3 sentences, max ~60 words) about \
-the story below. First convey what the article/story is about, then briefly note \
-the tone or split of the Hacker News discussion (e.g. "commenters are split", \
-"HN praises X but warns Y"). Be concrete and neutral. Do NOT start with the \
-title, do NOT use markdown, do NOT add a preamble like "This article" -- just the \
-summary text.
+For each story you are given, write a single information-dense paragraph (2-3 \
+sentences, max ~60 words). First convey what the article/story is about, then \
+briefly note the tone or split of the Hacker News discussion (e.g. "commenters \
+are split", "HN praises X but warns Y"). Be concrete and neutral. Do NOT start \
+with the title, do NOT use markdown, do NOT add a preamble like "This article" -- \
+just the summary text.
 
-TITLE: {title}
-
-ARTICLE CONTENT (may be empty or truncated):
-{article}
-
-TOP HACKER NEWS COMMENTS (may be empty):
-{comments}
+Return one summary per input story, matched by its index.
 """
+
+# Structured-output schema: a JSON array of {index, summary}.
+_RESPONSE_SCHEMA = types.Schema(
+    type=types.Type.ARRAY,
+    items=types.Schema(
+        type=types.Type.OBJECT,
+        properties={
+            "index": types.Schema(type=types.Type.INTEGER),
+            "summary": types.Schema(type=types.Type.STRING),
+        },
+        required=["index", "summary"],
+    ),
+)
+
+
+def _fallback_summary(story: Story) -> str:
+    return (
+        f"{story.title} — {story.score} points, {story.descendants} comments on "
+        "Hacker News. (AI summary unavailable.)"
+    )
 
 
 class Summarizer:
-    def __init__(self, api_key: str, model: str, delay: float, max_retries: int):
+    def __init__(
+        self,
+        api_key: str,
+        model: str,
+        delay: float,
+        max_retries: int,
+        batch_size: int = 8,
+    ):
         self._client = genai.Client(api_key=api_key)
         self._model = model
         self._delay = delay
         self._max_retries = max_retries
+        self._batch_size = max(1, batch_size)
 
-    def _generate(self, prompt: str) -> str:
+    def _build_batch_prompt(self, batch: list[tuple[int, Story, str, list[str]]]) -> str:
+        parts: list[str] = ["Summarize each of the following stories.\n"]
+        for index, story, article_text, comments in batch:
+            comment_block = "\n".join(f"  - {c[:500]}" for c in comments) or "  (none)"
+            parts.append(
+                f"=== STORY index={index} ===\n"
+                f"TITLE: {story.title}\n"
+                f"ARTICLE CONTENT (may be empty/truncated):\n{article_text[:5000] or '(none)'}\n"
+                f"TOP HN COMMENTS:\n{comment_block}\n"
+            )
+        return "\n".join(parts)
+
+    def _generate_batch(self, prompt: str) -> list[dict]:
         last_error: Exception | None = None
+        config = types.GenerateContentConfig(
+            system_instruction=_SYSTEM_INSTRUCTION,
+            response_mime_type="application/json",
+            response_schema=_RESPONSE_SCHEMA,
+        )
         for attempt in range(self._max_retries):
             try:
-                resp = self._client.models.generate_content(model=self._model, contents=prompt)
-                text = (resp.text or "").strip()
-                if text:
-                    return text
-                last_error = RuntimeError("empty response")
+                resp = self._client.models.generate_content(
+                    model=self._model, contents=prompt, config=config
+                )
+                data = json.loads(resp.text or "[]")
+                if isinstance(data, list):
+                    return data
+                last_error = RuntimeError("response was not a JSON array")
             except genai_errors.APIError as exc:
                 last_error = exc
-                # 429 (rate limit) / 5xx -> back off and retry.
                 status = getattr(exc, "code", None)
                 if status not in (429, 500, 502, 503, 504):
-                    break
-            except Exception as exc:  # network hiccup, etc.
+                    break  # 404 (bad model) etc. -> no point retrying
+            except Exception as exc:
                 last_error = exc
 
-            backoff = self._delay * (2**attempt)
+            backoff = max(self._delay, 4) * (2**attempt)
             print(f"    Gemini retry {attempt + 1}/{self._max_retries} in {backoff:.0f}s ({last_error})")
             time.sleep(backoff)
 
-        raise RuntimeError(f"Gemini failed after {self._max_retries} attempts: {last_error}")
-
-    def summarize(self, story: Story, article_text: str, comments: list[str]) -> str:
-        comment_block = "\n\n".join(f"- {c[:600]}" for c in comments) or "(none)"
-        prompt = _PROMPT_TEMPLATE.format(
-            title=story.title,
-            article=article_text or "(could not fetch article content)",
-            comments=comment_block,
-        )
-        return self._generate(prompt)
+        raise RuntimeError(f"Gemini batch failed after {self._max_retries} attempts: {last_error}")
 
     def summarize_all(self, jobs: list[tuple[Story, str, list[str]]]) -> dict[int, str]:
-        """Summarize every story sequentially, pacing calls for the free tier.
+        """Summarize every story in batches. Returns {story_id: summary}.
 
-        Returns {story_id: summary}. On failure for a single story, falls back to
-        a minimal summary so one bad story never breaks the whole digest.
+        A failed batch falls back to minimal per-story summaries so one bad batch
+        never breaks the whole digest.
         """
         summaries: dict[int, str] = {}
-        total = len(jobs)
-        for index, (story, article_text, comments) in enumerate(jobs, start=1):
-            print(f"  [{index}/{total}] Summarizing: {story.title[:70]}")
+        indexed = list(enumerate(jobs))  # global index -> (story, text, comments)
+        batches = [
+            indexed[i : i + self._batch_size] for i in range(0, len(indexed), self._batch_size)
+        ]
+
+        for batch_no, chunk in enumerate(batches, start=1):
+            batch = [(idx, s, t, c) for idx, (s, t, c) in chunk]
+            titles = ", ".join(s.title[:30] for _, s, _, _ in batch[:2])
+            print(f"  Batch {batch_no}/{len(batches)} ({len(batch)} stories): {titles}...")
+
             try:
-                summaries[story.id] = self.summarize(story, article_text, comments)
+                results = self._generate_batch(self._build_batch_prompt(batch))
+                by_index = {
+                    int(r["index"]): str(r["summary"]).strip()
+                    for r in results
+                    if isinstance(r, dict) and "index" in r and r.get("summary")
+                }
             except Exception as exc:
-                print(f"    ! Falling back for story {story.id}: {exc}")
-                summaries[story.id] = (
-                    f"{story.title} — {story.score} points, {story.descendants} comments on "
-                    "Hacker News. (AI summary unavailable.)"
-                )
-            if index < total and self._delay > 0:
+                print(f"    ! Batch {batch_no} failed, using fallbacks: {exc}")
+                by_index = {}
+
+            for index, story, _, _ in batch:
+                summary = by_index.get(index)
+                summaries[story.id] = summary if summary else _fallback_summary(story)
+
+            if batch_no < len(batches) and self._delay > 0:
                 time.sleep(self._delay)
+
         return summaries

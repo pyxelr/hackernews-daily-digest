@@ -19,7 +19,7 @@ No servers, no paid services, no n8n. Just a **GitHub Action** on a cron schedul
 |-------|---------|------|
 | Scheduling / compute | **GitHub Actions** | Free, *unlimited minutes* for public repos |
 | Story data | **Hacker News Firebase API** | Free, no auth, no rate limits |
-| AI summaries | **Google Gemini API** (free tier) | Free — ~1500 req/day, well above 30/day |
+| AI summaries | **Google Gemini API** (free tier) | Free — stories are batched into ~4 requests/day |
 | Email delivery | **Gmail SMTP** (app password) | Free |
 
 > The consumer **Google AI Pro** subscription is *not* required — the Gemini API
@@ -33,7 +33,7 @@ GitHub Actions (cron, ~08:00)
         ▼
   main.py  ──▶  Hacker News API      (top 30 stories + top comments)
         │  ──▶  fetch article pages   (best-effort text extraction)
-        │  ──▶  Google Gemini         (one summary per story)
+        │  ──▶  Google Gemini         (batched: ~8 stories per request)
         │  ──▶  render HTML email
         ▼
    Gmail SMTP  ──▶  your inbox 📬
@@ -69,7 +69,15 @@ In your repo: **Settings → Secrets and variables → Actions → New repositor
 | `RECIPIENTS` | *(optional)* comma-separated recipients; defaults to `GMAIL_USERNAME` |
 
 Optional **Variables** (same page, *Variables* tab) to tweak without editing code:
-`NUM_STORIES` (default `30`), `GEMINI_MODEL` (default `gemini-2.5-flash`).
+`NUM_STORIES` (default `30`), `GEMINI_MODEL` (default `gemini-3.5-flash`).
+
+> **Model not available?** Gemini model IDs change over time. If a run fails with
+> a `404 ... model is no longer available` error, list what your key supports and
+> set `GEMINI_MODEL` to one of them:
+>
+> ```bash
+> GEMINI_API_KEY=your-key python -m src.list_models
+> ```
 
 ### 5. Test it
 Go to **Actions → Daily HN Digest → Run workflow**.
@@ -104,15 +112,16 @@ All settings are environment variables (see [`.env.example`](.env.example)):
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `GEMINI_API_KEY` | — | Gemini API key (required) |
-| `GEMINI_MODEL` | `gemini-2.5-flash` | Model used for summaries |
+| `GEMINI_MODEL` | `gemini-3.5-flash` | Model used for summaries |
 | `GMAIL_USERNAME` | — | Sender Gmail address |
 | `GMAIL_APP_PASSWORD` | — | Gmail app password |
 | `RECIPIENTS` | sender | Comma-separated recipients |
 | `NUM_STORIES` | `30` | Stories per email |
 | `MIN_SCORE` | `0` | Skip stories below this score |
 | `MAX_COMMENTS` | `6` | Top comments fed to the summarizer |
+| `BATCH_SIZE` | `8` | Stories summarized per Gemini request |
 | `FETCH_ARTICLES` | `true` | Also fetch article bodies for context |
-| `REQUEST_DELAY_SECONDS` | `6` | Pause between Gemini calls (free-tier pacing) |
+| `REQUEST_DELAY_SECONDS` | `6` | Pause between Gemini batches (free-tier pacing) |
 | `DRY_RUN` | `false` | Write HTML file instead of emailing |
 
 ## Project layout
@@ -122,7 +131,8 @@ main.py                     Orchestrator
 src/config.py               Env-based configuration
 src/hn_client.py            Hacker News API client
 src/article_fetcher.py      Best-effort article text extraction
-src/summarizer.py           Gemini summaries (paced + retried)
+src/summarizer.py           Gemini summaries (batched, paced + retried)
+src/list_models.py          Helper: list models your API key supports
 src/email_renderer.py       HTML email template
 src/mailer.py               Gmail SMTP sender
 .github/workflows/          Daily cron workflow
@@ -130,8 +140,11 @@ src/mailer.py               Gmail SMTP sender
 
 ## Notes & troubleshooting
 
-- **Gemini free-tier rate limits** are per-minute. 30 stories are paced ~6s apart
-  by default; raise `REQUEST_DELAY_SECONDS` if you see `429` retries.
+- **Gemini free-tier rate limits** are per-minute. Stories are summarized in
+  batches (`BATCH_SIZE`, default 8), so 30 stories cost only ~4 requests. If you
+  still see `429` retries, lower `BATCH_SIZE` or raise `REQUEST_DELAY_SECONDS`.
+- **`404 model not available`?** Model IDs get deprecated. Run
+  `python -m src.list_models` and set the `GEMINI_MODEL` variable to a listed one.
 - **Some articles won't be fetched** (paywalls, JS-only, PDFs, videos). The
   summary then falls back to the title + HN comments — which is usually enough.
 - **Email in spam?** Mark it "not spam" once; sending to yourself is very reliable.

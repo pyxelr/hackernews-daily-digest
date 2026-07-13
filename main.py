@@ -51,6 +51,7 @@ def build_digest() -> tuple[list[hn_client.Story], dict[int, str], datetime]:
         model=config.gemini_model,
         delay=config.request_delay_seconds,
         max_retries=config.max_retries,
+        batch_size=config.batch_size,
     )
     summaries = summarizer.summarize_all(jobs)
 
