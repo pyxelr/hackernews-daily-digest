@@ -1,7 +1,7 @@
 # Hacker News Daily digest 📰
 
 A **completely free**, self-hosted email newsletter that sends you the top
-[Hacker News](https://news.ycombinator.com/) stories every morning — each with a
+[Hacker News](https://news.ycombinator.com/) stories every morning, each with a
 short AI summary (article + community reaction) and links to both the article and
 its HN discussion.
 
@@ -49,11 +49,13 @@ No servers, no paid services, no n8n. Just a **GitHub Action** on a cron schedul
 |-------|---------|------|
 | Scheduling / compute | **GitHub Actions** | Free, *unlimited minutes* for public repos |
 | Story data | **Hacker News Firebase API** | Free, no auth, no rate limits |
-| AI summaries | **Google Gemini API** (free tier) | Free — stories are batched into ~4 requests/day |
+| AI summaries | **Google Gemini API** ([free tier](https://ai.google.dev/gemini-api/docs/pricing)) | Free; stories are batched into ~4 requests/day |
 | Email delivery | **Gmail SMTP** (app password) | Free |
 
-> The consumer **Google AI Pro** subscription is *not* required — the Gemini API
-> has its own free tier available to any Google account.
+> The consumer **Google AI Pro** subscription is *not* required; the Gemini API
+> has its own [**free tier**](https://ai.google.dev/gemini-api/docs/pricing) (the
+> pricing page lists the Free, Paid, and Enterprise tiers) available to any Google
+> account.
 
 ## How it works
 
@@ -120,10 +122,10 @@ It now runs automatically every day at **≈ 05:17 Poland time**, year-round.
 > **How the timing survives daylight saving:** GitHub cron is UTC-only and
 > ignores DST, so the workflow schedules *two* UTC times (`03:17` and `04:17`)
 > and a guard (`RUN_ONLY_AT_LOCAL_HOUR=5`) lets only the run that actually lands
-> on 05:xx in `DISPLAY_TIMEZONE` proceed — the other exits in seconds. To change
+> on 05:xx in `DISPLAY_TIMEZONE` proceed; the other exits in seconds. To change
 > the time, edit the two `cron` lines and the guard hour in
 > [`.github/workflows/daily-digest.yml`](.github/workflows/daily-digest.yml)
-> (times there are **UTC** — [crontab.guru](https://crontab.guru) helps).
+> (times there are **UTC**; [crontab.guru](https://crontab.guru) helps).
 
 ---
 
@@ -134,7 +136,7 @@ python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 cp .env.example .env      # then fill in your keys
 
-# Preview without sending — writes output/digest.html
+# Preview without sending; writes output/digest.html
 DRY_RUN=true python main.py
 
 # Send for real
@@ -143,7 +145,7 @@ python main.py
 
 ## Trigger a run manually
 
-You don't have to wait for the daily schedule — you can run it any time:
+You don't have to wait for the daily schedule; you can run it any time:
 
 **From GitHub (no setup needed):** open **Actions → Daily HN Digest → Run
 workflow**. Tick **Dry run** to build a downloadable HTML artifact without
@@ -189,7 +191,8 @@ All settings are environment variables (see [`.env.example`](.env.example)):
 - **`404 model not available`?** Model IDs get deprecated. Run
   `python -m src.list_models` and set the `GEMINI_MODEL` variable to a listed one.
 - **Some articles won't be fetched** (paywalls, JS-only, PDFs, videos). The
-  summary then falls back to the title + HN comments — which is usually enough.
+  summary then falls back to the title + HN comments, which is usually enough.
 - **Email in spam?** Mark it "not spam" once; sending to yourself is very reliable.
-- **Scheduled runs can be delayed** a few minutes by GitHub during peak load — a
-  known GitHub Actions behaviour, not a bug here.
+- **Scheduled runs can be delayed** by GitHub during peak load (we have seen a
+  couple of hours); this is normal GitHub Actions behaviour, not a bug here. The
+  digest still sends that day, just later.
