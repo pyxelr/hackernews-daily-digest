@@ -56,9 +56,12 @@ jobs:
           DISPLAY_TIMEZONE: ${{ vars.DISPLAY_TIMEZONE || 'Europe/Warsaw' }}
           # Empty label = accurate DST-aware abbreviation (CET / CEST).
           DISPLAY_TZ_LABEL: ${{ vars.DISPLAY_TZ_LABEL || '' }}
-          # DST guard: with the two cron times above, only the run that lands on
+          # DST guard: with the two cron times above, only the cron that maps to
           # 05:xx Warsaw time proceeds; the other exits early. Manual runs ignore it.
           RUN_ONLY_AT_LOCAL_HOUR: "5"
+          # The cron entry that triggered this run (empty for manual runs). Lets
+          # the guard decide by *scheduled* time, robust to GitHub's run delays.
+          TRIGGER_CRON: ${{ github.event.schedule }}
           DRY_RUN: ${{ inputs.dry_run }}
         run: python main.py
 

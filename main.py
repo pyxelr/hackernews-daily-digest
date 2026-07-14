@@ -22,28 +22,54 @@ from src.summarizer import Summarizer
 
 
 def should_skip_this_run() -> bool:
-    """For scheduled runs, skip unless it's the target local hour.
+    """For scheduled runs, let only the cron whose *scheduled* local time matches
+    the target hour proceed.
 
-    The workflow schedules two UTC times so one always lands on the target local
-    hour regardless of daylight saving; this lets only that one proceed. Manual
-    (workflow_dispatch) runs and local runs always proceed.
+    The workflow schedules two UTC times so one always maps to the target local
+    hour regardless of daylight saving. We must NOT decide from the wall-clock at
+    execution time: GitHub often delays scheduled runs by a long time (we have
+    seen ~2h), which would make every run miss the target hour. Instead we read
+    which cron entry triggered this run (github.event.schedule, passed in as
+    TRIGGER_CRON) and compute the local hour it was scheduled for -- stable no
+    matter how late GitHub actually starts the job.
+
+    Manual (workflow_dispatch) runs and local runs always proceed.
     """
     target = config.run_only_at_local_hour.strip()
     if not target or not target.isdigit():
         return False
-    # Only guard actual cron runs; always allow manual (workflow_dispatch) and
-    # local runs (where GITHUB_EVENT_NAME is unset).
+    # Only guard scheduled runs; manual and local runs proceed.
     if os.getenv("GITHUB_EVENT_NAME", "") != "schedule":
         return False
     try:
         tz = ZoneInfo(config.display_timezone)
     except (ZoneInfoNotFoundError, ValueError):
         return False
+
+    trigger = os.getenv("TRIGGER_CRON", "").strip()  # e.g. "17 3 * * *"
+    fields = trigger.split()
+    if len(fields) == 5 and fields[0].isdigit() and fields[1].isdigit():
+        # Local hour this cron entry maps to today. Uses the current UTC offset,
+        # which is stable around our early-morning run times (DST switches happen
+        # at 01:00 UTC, before either cron fires).
+        scheduled_utc = datetime.now(tz=timezone.utc).replace(
+            hour=int(fields[1]), minute=int(fields[0]), second=0, microsecond=0
+        )
+        scheduled_local_hour = scheduled_utc.astimezone(tz).hour
+        if scheduled_local_hour != int(target):
+            print(
+                f"Skipping: cron '{trigger}' maps to {scheduled_local_hour:02d}:00 "
+                f"in {config.display_timezone}, target is {int(target):02d}:00 (DST guard)."
+            )
+            return True
+        return False
+
+    # Fallback (no cron info): best-effort execution-time hour check.
     local_hour = datetime.now(tz=tz).hour
     if local_hour != int(target):
         print(
             f"Skipping: local hour is {local_hour:02d} in {config.display_timezone}, "
-            f"target is {int(target):02d} (DST guard)."
+            f"target is {int(target):02d} (DST guard, no cron info)."
         )
         return True
     return False
