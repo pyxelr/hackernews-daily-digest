@@ -7,6 +7,7 @@ Run locally:
 
 from __future__ import annotations
 
+import contextlib
 import os
 import sys
 from datetime import datetime, timezone
@@ -19,6 +20,22 @@ from src.config import config
 from src.email_renderer import render_html, render_subject
 from src.mailer import send_email
 from src.summarizer import Summarizer
+
+
+@contextlib.contextmanager
+def log_group(title: str):
+    """Group log output into a collapsible section.
+
+    Uses GitHub Actions workflow-command markers when running in CI (so each phase
+    is a foldable group in the run log); prints a plain header when run locally.
+    """
+    in_actions = os.getenv("GITHUB_ACTIONS", "") == "true"
+    print(f"::group::{title}" if in_actions else f"\n=== {title} ===")
+    try:
+        yield
+    finally:
+        if in_actions:
+            print("::endgroup::")
 
 
 def should_skip_this_run() -> bool:
@@ -78,38 +95,40 @@ def should_skip_this_run() -> bool:
 def build_digest() -> tuple[list[hn_client.Story], dict[int, str], datetime]:
     now = datetime.now(tz=timezone.utc)
 
-    print(f"Fetching top {config.num_stories} stories from Hacker News...")
-    stories = hn_client.get_stories(config.num_stories, config.min_score)
-    print(f"Got {len(stories)} stories.")
-    if not stories:
-        raise SystemExit("No stories returned from Hacker News; aborting.")
+    with log_group("Fetch top stories, articles & comments"):
+        print(f"Fetching top {config.num_stories} stories from Hacker News...")
+        stories = hn_client.get_stories(config.num_stories, config.min_score)
+        print(f"Got {len(stories)} stories.")
+        if not stories:
+            raise SystemExit("No stories returned from Hacker News; aborting.")
 
-    # Fetch article bodies concurrently (best-effort).
-    article_text: dict[str, str] = {}
-    if config.fetch_articles:
-        urls = [s.url for s in stories if s.url]
-        print(f"Fetching {len(urls)} article bodies...")
-        article_text = fetch_many(
-            urls, config.article_timeout, config.article_char_limit, config.fetch_workers
+        # Fetch article bodies concurrently (best-effort).
+        article_text: dict[str, str] = {}
+        if config.fetch_articles:
+            urls = [s.url for s in stories if s.url]
+            print(f"Fetching {len(urls)} article bodies...")
+            article_text = fetch_many(
+                urls, config.article_timeout, config.article_char_limit, config.fetch_workers
+            )
+
+        # Gather top comments per story for sentiment context.
+        print("Fetching top comments...")
+        jobs: list[tuple[hn_client.Story, str, list[str]]] = []
+        for story in stories:
+            comments = hn_client.get_top_comments(story, config.max_comments)
+            text = article_text.get(story.url or "", "")
+            jobs.append((story, text, comments))
+
+    with log_group("Summarize with Gemini"):
+        print(f"Generating summaries with {config.gemini_model}...")
+        summarizer = Summarizer(
+            api_key=config.gemini_api_key,
+            model=config.gemini_model,
+            delay=config.request_delay_seconds,
+            max_retries=config.max_retries,
+            batch_size=config.batch_size,
         )
-
-    # Gather top comments per story for sentiment context.
-    print("Fetching top comments...")
-    jobs: list[tuple[hn_client.Story, str, list[str]]] = []
-    for story in stories:
-        comments = hn_client.get_top_comments(story, config.max_comments)
-        text = article_text.get(story.url or "", "")
-        jobs.append((story, text, comments))
-
-    print(f"Generating summaries with {config.gemini_model}...")
-    summarizer = Summarizer(
-        api_key=config.gemini_api_key,
-        model=config.gemini_model,
-        delay=config.request_delay_seconds,
-        max_retries=config.max_retries,
-        batch_size=config.batch_size,
-    )
-    summaries = summarizer.summarize_all(jobs)
+        summaries = summarizer.summarize_all(jobs)
 
     return stories, summaries, now
 
@@ -127,34 +146,36 @@ def main() -> int:
         else None
     )
     next_run = schedule.next_effective_run(now, config.display_timezone, guard_hour)
-    html_body = render_html(
-        stories,
-        summaries,
-        now,
-        next_run=next_run,
-        tz_name=config.display_timezone,
-        tz_label=config.display_tz_label,
-    )
-    subject = render_subject(stories, now)
 
-    if config.dry_run:
-        out_dir = Path("output")
-        out_dir.mkdir(exist_ok=True)
-        out_file = out_dir / "digest.html"
-        out_file.write_text(html_body, encoding="utf-8")
-        print(f"\nDRY RUN — wrote {out_file.resolve()}")
-        print(f"Subject would be: {subject}")
-        return 0
+    with log_group("Render & send email"):
+        html_body = render_html(
+            stories,
+            summaries,
+            now,
+            next_run=next_run,
+            tz_name=config.display_timezone,
+            tz_label=config.display_tz_label,
+        )
+        subject = render_subject(stories, now)
 
-    print(f"\nSending digest to {', '.join(config.recipients)}...")
-    send_email(
-        username=config.gmail_username,
-        app_password=config.gmail_app_password,
-        recipients=config.recipients,
-        subject=subject,
-        html_body=html_body,
-    )
-    print("Sent successfully.")
+        if config.dry_run:
+            out_dir = Path("output")
+            out_dir.mkdir(exist_ok=True)
+            out_file = out_dir / "digest.html"
+            out_file.write_text(html_body, encoding="utf-8")
+            print(f"\nDRY RUN: wrote {out_file.resolve()}")
+            print(f"Subject would be: {subject}")
+            return 0
+
+        print(f"Sending digest to {', '.join(config.recipients)}...")
+        send_email(
+            username=config.gmail_username,
+            app_password=config.gmail_app_password,
+            recipients=config.recipients,
+            subject=subject,
+            html_body=html_body,
+        )
+        print("Sent successfully.")
     return 0
 
 
