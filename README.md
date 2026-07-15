@@ -71,8 +71,9 @@ GitHub Actions (cron, ~05:17 Poland time)
    Gmail SMTP  ──▶  your inbox 📬
 ```
 
-Each story in the email shows its **score**, **title** (→ article), source
-domain, **N replies** (→ HN discussion), author, age, and a 2–3 sentence summary.
+Each story in the email shows its **rank** (#1, #2, …), **score**, **title**
+(→ article), source domain, **N replies** (→ HN discussion), author, age, and a
+concise 1-2 sentence summary.
 
 ---
 

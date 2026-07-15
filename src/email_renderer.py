@@ -71,6 +71,7 @@ def _story_block(rank: int, story: Story, summary: str, now: datetime) -> str:
               <tr>
                 <td valign="top" width="46" style="padding-right:12px;">
                   <div style="background:#fce4cf;color:#8a4b1a;font-weight:700;font-size:12px;text-align:center;border-radius:5px;padding:4px 0;">{story.score}</div>
+                  <div style="margin-top:3px;color:#8a8a8a;font-size:11px;font-weight:600;text-align:center;">#{rank}</div>
                 </td>
                 <td valign="top" align="left">
                   <a href="{_e(story.article_url)}" style="color:#141414;font-size:15px;font-weight:700;text-decoration:none;line-height:1.3;">{_e(story.title)}</a>

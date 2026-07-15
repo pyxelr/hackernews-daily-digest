@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.2] - 2026-07-15
+
+### Added
+
+- Grey `#N` rank (`#1`, `#2`, …) shown under each story's score badge, so the
+  top-to-bottom order by points is explicit. Refreshed the sample digest and
+  README screenshot to show it.
+
 ## [1.0.1] - 2026-07-15
 
 Layout refresh for better inbox readability.
@@ -60,6 +68,7 @@ Initial release: a completely free, self-hosted daily Hacker News email digest.
 - `src/list_models.py` helper to list the Gemini models available to your API key.
 - Sample rendered digest and a screenshot in `docs/`.
 
-[Unreleased]: https://github.com/pyxelr/hackernews-daily-digest/compare/v1.0.1...HEAD
+[Unreleased]: https://github.com/pyxelr/hackernews-daily-digest/compare/v1.0.2...HEAD
+[1.0.2]: https://github.com/pyxelr/hackernews-daily-digest/compare/v1.0.1...v1.0.2
 [1.0.1]: https://github.com/pyxelr/hackernews-daily-digest/compare/v1.0.0...v1.0.1
 [1.0.0]: https://github.com/pyxelr/hackernews-daily-digest/releases/tag/v1.0.0
