@@ -53,26 +53,29 @@ def _e(text: str) -> str:
 
 def _story_block(rank: int, story: Story, summary: str, now: datetime) -> str:
     replies = f"{story.descendants} replies" if story.descendants else "discuss"
+    link = f"color:{_HN_ORANGE};text-decoration:none;"
     meta_bits = [
-        f'<a href="{_e(story.article_url)}" style="color:{_HN_ORANGE};text-decoration:none;">{_e(story.domain)}</a>',
-        f'<a href="{_e(story.hn_url)}" style="color:{_HN_ORANGE};text-decoration:none;">{_e(replies)}</a>',
-        _e(story.by),
+        # Domain links to the article, reply count links to the HN discussion.
+        f'<a href="{_e(story.article_url)}" style="{link}">{_e(story.domain)}</a>',
+        f'<a href="{_e(story.hn_url)}" style="{link}">{_e(replies)}</a>',
+        _e(story.by),  # author name as plain text (no profile link)
         _time_ago(story.time, now),
     ]
-    meta_line = ' <span style="color:#c0c0c0;">&bull;</span> '.join(bit for bit in meta_bits if bit)
+    sep = ' <span style="color:#c9c9c9;">&bull;</span> '
+    meta_line = sep.join(bit for bit in meta_bits if bit)
 
     return f"""\
         <tr>
-          <td style="padding:16px 20px;border-bottom:1px solid #ececec;background:{'#ffffff' if rank % 2 else '#fbfbf9'};">
+          <td style="padding:9px 16px;border-bottom:1px solid #eeece7;background:#f7f6f1;">
             <table role="presentation" cellpadding="0" cellspacing="0" width="100%">
               <tr>
-                <td valign="top" width="52" style="padding-right:14px;">
-                  <div style="background:#fce9d6;color:#8a4b1a;font-weight:700;font-size:13px;text-align:center;border-radius:6px;padding:6px 0;">{story.score}</div>
+                <td valign="top" width="46" style="padding-right:12px;">
+                  <div style="background:#fce4cf;color:#8a4b1a;font-weight:700;font-size:12px;text-align:center;border-radius:5px;padding:4px 0;">{story.score}</div>
                 </td>
-                <td valign="top">
-                  <a href="{_e(story.article_url)}" style="color:#1a1a1a;font-size:16px;font-weight:700;text-decoration:none;line-height:1.35;">{_e(story.title)}</a>
-                  <div style="margin-top:5px;font-size:12px;color:#828282;">{meta_line}</div>
-                  <div style="margin-top:9px;font-size:14px;color:#3a3a3a;line-height:1.55;">{_e(summary)}</div>
+                <td valign="top" align="left">
+                  <a href="{_e(story.article_url)}" style="color:#141414;font-size:15px;font-weight:700;text-decoration:none;line-height:1.3;">{_e(story.title)}</a>
+                  <div style="margin-top:3px;font-size:12px;color:#8a8a8a;">{meta_line}</div>
+                  <div style="margin-top:7px;background:#ffffff;border:1px solid #ebe9e3;border-radius:6px;padding:7px 11px;font-size:13px;color:#3f3f3f;line-height:1.5;">{_e(summary)}</div>
                 </td>
               </tr>
             </table>
@@ -116,36 +119,30 @@ def render_html(
 <!DOCTYPE html>
 <html>
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"></head>
-<body style="margin:0;padding:0;background:#f2f2f2;font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;">
-  <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="background:#f2f2f2;padding:24px 0;">
+<body style="margin:0;padding:0;background:#ffffff;font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;">
+  <table role="presentation" cellpadding="0" cellspacing="0" align="left" width="100%" style="max-width:960px;background:#ffffff;">
     <tr>
-      <td align="center">
-        <table role="presentation" cellpadding="0" cellspacing="0" width="640" style="max-width:640px;width:100%;background:#ffffff;border-radius:8px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,0.08);">
-          <tr>
-            <td style="background:{_HN_ORANGE};padding:14px 20px;">
-              <span style="color:#ffffff;font-size:18px;font-weight:800;letter-spacing:.2px;">Hacker News Daily</span>
-              <span style="color:#fff4ea;font-size:13px;font-weight:600;float:right;padding-top:4px;">{_e(edition_day)}</span>
-            </td>
-          </tr>
-          <tr>
-            <td style="padding:13px 20px 12px;border-bottom:1px solid #ececec;">
-              <span style="font-size:15px;font-weight:700;color:#333;">Top {len(stories)} stories</span>
-              <span style="font-size:12px;color:#9a9a9a;float:right;padding-top:3px;">Covering {coverage}</span>
-            </td>
-          </tr>
-          {rows}
-          <tr>
-            <td style="padding:18px 20px;background:#fafafa;border-top:1px solid #ececec;">
-              <div style="font-size:12px;color:#9a9a9a;line-height:1.6;">
-                Generated {_e(_fmt_dt(now, tz, tz_label))} from the
-                <a href="https://news.ycombinator.com/news" style="color:{_HN_ORANGE};text-decoration:none;">Hacker News</a>
-                top-stories API, with summaries by Google Gemini.
-                Ages like &ldquo;3h ago&rdquo; are relative to that time.{next_run_html}<br>
-                Source: <a href="https://github.com/pyxelr/hackernews-daily-digest" style="color:{_HN_ORANGE};text-decoration:none;">github.com/pyxelr/hackernews-daily-digest</a>
-              </div>
-            </td>
-          </tr>
-        </table>
+      <td style="background:{_HN_ORANGE};padding:11px 16px;">
+        <span style="color:#141414;font-size:17px;font-weight:800;letter-spacing:.2px;">Hacker News Daily</span>
+        <span style="color:#5a2a00;font-size:12px;font-weight:600;float:right;padding-top:4px;">{_e(edition_day)}</span>
+      </td>
+    </tr>
+    <tr>
+      <td style="padding:10px 16px 8px;border-bottom:1px solid #eeece7;">
+        <span style="font-size:14px;font-weight:700;color:#333;">Top {len(stories)} stories</span>
+        <span style="font-size:12px;color:#9a9a9a;float:right;padding-top:2px;">Covering {coverage}</span>
+      </td>
+    </tr>
+    {rows}
+    <tr>
+      <td style="padding:14px 16px;background:#fafafa;border-top:1px solid #eeece7;">
+        <div style="font-size:11px;color:#9a9a9a;line-height:1.6;">
+          Generated {_e(_fmt_dt(now, tz, tz_label))} from the
+          <a href="https://news.ycombinator.com/news" style="color:{_HN_ORANGE};text-decoration:none;">Hacker News</a>
+          top-stories API, with summaries by Google Gemini.
+          Ages like &ldquo;3h ago&rdquo; are relative to that time.{next_run_html}<br>
+          Source: <a href="https://github.com/pyxelr/hackernews-daily-digest" style="color:{_HN_ORANGE};text-decoration:none;">github.com/pyxelr/hackernews-daily-digest</a>
+        </div>
       </td>
     </tr>
   </table>
@@ -153,7 +150,8 @@ def render_html(
 </html>"""
 
 
-def render_subject(stories: list[Story], now: datetime | None = None) -> str:
+def render_subject(stories: list[Story], now: datetime | None = None, tz_name: str = "UTC") -> str:
     now = now or datetime.now(tz=timezone.utc)
+    date_label = now.astimezone(_resolve_tz(tz_name)).strftime("%-d %b")  # e.g. "15 Jul"
     top = stories[0].title if stories else "Top Stories"
-    return f"HN Daily · {len(stories)} stories · {top[:60]}"
+    return f"HN Daily · {date_label} · {top[:60]}"

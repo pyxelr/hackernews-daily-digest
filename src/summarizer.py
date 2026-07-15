@@ -22,14 +22,14 @@ from google.genai import types
 from .hn_client import Story
 
 _SYSTEM_INSTRUCTION = """\
-You write one-paragraph summaries for a "Hacker News Daily" email digest.
+You write very short summaries for a "Hacker News Daily" email digest.
 
-For each story you are given, write a single information-dense paragraph (2-3 \
-sentences, max ~60 words). First convey what the article/story is about, then \
-briefly note the tone or split of the Hacker News discussion (e.g. "commenters \
-are split", "HN praises X but warns Y"). Be concrete and neutral. Do NOT start \
-with the title, do NOT use markdown, do NOT add a preamble like "This article" -- \
-just the summary text.
+For each story, write 1-2 sentences (about 45 words, up to two lines). First say \
+what the story is about, then briefly note the mood of the discussion. Refer to \
+the community only as "HN" or "Commenters" (e.g. "HN is split", "Commenters \
+praise X but warn Y"); never write "Hacker News readers" or "Hacker News \
+commenters". Be concrete and neutral. Do NOT start with the title, do NOT use \
+markdown, and do NOT add a preamble like "This article"; just the summary text.
 
 Return one summary per input story, matched by its index.
 """
@@ -49,10 +49,7 @@ _RESPONSE_SCHEMA = types.Schema(
 
 
 def _fallback_summary(story: Story) -> str:
-    return (
-        f"{story.title} — {story.score} points, {story.descendants} comments on "
-        "Hacker News. (AI summary unavailable.)"
-    )
+    return "(summary unavailable)"
 
 
 class Summarizer:

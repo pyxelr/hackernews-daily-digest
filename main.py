@@ -156,7 +156,7 @@ def main() -> int:
             tz_name=config.display_timezone,
             tz_label=config.display_tz_label,
         )
-        subject = render_subject(stories, now)
+        subject = render_subject(stories, now, tz_name=config.display_timezone)
 
         if config.dry_run:
             out_dir = Path("output")

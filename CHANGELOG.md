@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.1] - 2026-07-15
+
+Layout refresh for better inbox readability.
+
+### Changed
+
+- Redesigned the email to a left-aligned, wider (960px) layout that reads well in
+  most mail clients.
+- Summaries are now more concise (1-2 lines, about 45 words) and refer to the
+  community as "HN" or "Commenters" instead of "Hacker News readers".
+- Dropped user-profile links from the per-story meta line.
+- Email subject now shows the date (e.g. "15 Jul") instead of the story count.
+- When a story's AI summary is unavailable, the fallback text is now just
+  "(summary unavailable)" instead of restating the points and comment counts.
+- Refreshed the sample digest (`docs/example-digest.html`, 30 stories) and the
+  README screenshot to the new layout.
+- Documented running the digest locally, without GitHub Actions.
+- Sample digest is served via GitHub Pages (`docs/`) and linked from the README
+  for a reliable in-browser preview; Pages redeploys only when `docs/` changes.
+
 ## [1.0.0] - 2026-07-14
 
 Initial release: a completely free, self-hosted daily Hacker News email digest.
@@ -40,5 +60,6 @@ Initial release: a completely free, self-hosted daily Hacker News email digest.
 - `src/list_models.py` helper to list the Gemini models available to your API key.
 - Sample rendered digest and a screenshot in `docs/`.
 
-[Unreleased]: https://github.com/pyxelr/hackernews-daily-digest/compare/v1.0.0...HEAD
+[Unreleased]: https://github.com/pyxelr/hackernews-daily-digest/compare/v1.0.1...HEAD
+[1.0.1]: https://github.com/pyxelr/hackernews-daily-digest/compare/v1.0.0...v1.0.1
 [1.0.0]: https://github.com/pyxelr/hackernews-daily-digest/releases/tag/v1.0.0

@@ -11,7 +11,7 @@ No servers, no paid services, no n8n. Just a **GitHub Action** on a cron schedul
   <em>Top-N stories · AI summaries by Google Gemini · delivered over Gmail SMTP</em>
 </p>
 
-📄 **[See a sample](https://htmlpreview.github.io/?https://github.com/pyxelr/hackernews-daily-digest/blob/main/docs/example-digest.html)** (generated from the [.html file](docs/example-digest.html)).
+📄 **[See a sample](https://pyxelr.github.io/hackernews-daily-digest/example-digest.html)** (generated from the [.html file](docs/example-digest.html)).
 
 <p align="center">
   <img src="docs/example-email.png" alt="Example Hacker News Daily digest email" width="640">
@@ -129,19 +129,28 @@ It now runs automatically every day at **≈ 05:17 Poland time**, year-round.
 
 ---
 
-## Run locally
+## Run locally (without GitHub Actions)
+
+The whole digest runs as a plain Python script, so you can generate or send it
+from your own machine with no GitHub Actions involved. You only need a Gemini API
+key; Gmail credentials are needed solely for the real send.
 
 ```bash
 python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 cp .env.example .env      # then fill in your keys
 
-# Preview without sending; writes output/digest.html
+# Preview only: writes output/digest.html and sends nothing.
+# Needs just GEMINI_API_KEY. Open the file in a browser to see the result.
 DRY_RUN=true python main.py
 
-# Send for real
+# Send for real (needs GMAIL_USERNAME + GMAIL_APP_PASSWORD too).
 python main.py
 ```
+
+This is exactly what the GitHub Action does; it just runs the same `python
+main.py` on a schedule. Running locally is handy for previewing layout changes or
+sending an ad-hoc digest.
 
 ## Trigger a run manually
 
