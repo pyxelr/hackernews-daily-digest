@@ -1,0 +1,18 @@
+[project]
+name = "hackernews-daily-digest"
+version = "1.0.3"
+description = "A free, self-hosted daily Hacker News email digest with AI summaries, powered by GitHub Actions."
+readme = "README.md"
+requires-python = ">=3.12"
+license = { text = "MIT" }
+authors = [{ name = "pyxelr" }]
+dependencies = [
+    "requests>=2.31,<3",
+    "beautifulsoup4>=4.12,<5",
+    "google-genai>=1.0,<2",
+    "python-dotenv>=1.0,<2",
+]
+
+[tool.uv]
+# Helper-only dev dependency (list available Gemini models, etc.).
+package = false

@@ -28,27 +28,22 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7
 
-      - name: Set up Python
-        uses: actions/setup-python@v6
-        with:
-          python-version: "3.12"
-
-      # uv installs from a warm cache in a couple of seconds (much faster than
-      # pip). The cache is keyed on requirements.txt, so it only re-downloads
-      # when dependencies actually change.
+      # uv manages both the Python interpreter and the dependencies, installing
+      # from a warm cache in a couple of seconds. The cache is keyed on uv.lock,
+      # so it only re-downloads when locked dependencies actually change.
       - name: Set up uv
         uses: astral-sh/setup-uv@v7
         with:
           enable-cache: true
-          cache-dependency-glob: requirements.txt
+          cache-dependency-glob: uv.lock
 
-      - name: Install dependencies
-        run: uv pip install --system -r requirements.txt
+      - name: Install dependencies (locked)
+        run: uv sync --frozen
 
       - name: Build and send digest
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-          GEMINI_MODEL: ${{ vars.GEMINI_MODEL || 'gemini-3.5-flash' }}
+          GEMINI_MODEL: ${{ vars.GEMINI_MODEL || 'gemini-3.6-flash' }}
           GMAIL_USERNAME: ${{ secrets.GMAIL_USERNAME }}
           GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
           RECIPIENTS: ${{ secrets.RECIPIENTS }}
@@ -63,7 +58,7 @@ jobs:
           # the guard decide by *scheduled* time, robust to GitHub's run delays.
           TRIGGER_CRON: ${{ github.event.schedule }}
           DRY_RUN: ${{ inputs.dry_run }}
-        run: python main.py
+        run: uv run python main.py
 
       - name: Upload digest artifact (dry run only)
         if: ${{ inputs.dry_run }}

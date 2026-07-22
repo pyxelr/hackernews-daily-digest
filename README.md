@@ -36,7 +36,8 @@ No servers, no paid services, no n8n. Just a **GitHub Action** on a cron schedul
 │   ├── mailer.py               # Gmail SMTP sender
 │   └── list_models.py          # Helper: list models your API key supports
 ├── main.py                     # Orchestrator (fetch -> summarize -> send)
-├── requirements.txt            # Python dependencies
+├── pyproject.toml              # Project metadata & dependencies (uv)
+├── uv.lock                     # Locked, reproducible dependency versions
 ├── .env.example                # Template for local environment variables
 └── README.md                   # This file
 ```
@@ -91,6 +92,12 @@ Go to **[aistudio.google.com/apikey](https://aistudio.google.com/apikey)** → *
 2. Go to **[myaccount.google.com/apppasswords](https://myaccount.google.com/apppasswords)**.
 3. Create a password (name it e.g. "HN digest"). Copy the 16-character value.
 
+> **Tip:** consider using a **dedicated Gmail account** as the sender (e.g.
+> `you.news@gmail.com`) instead of your personal one. It keeps the daily digest
+> out of your personal *Sent* folder, gives the newsletter its own avatar (set a
+> profile picture on that account), and isolates it. Point `RECIPIENTS` at your
+> real inbox.
+
 ### 4. Add repository secrets
 In your repo: **Settings → Secrets and variables → Actions → New repository secret**.
 
@@ -102,14 +109,14 @@ In your repo: **Settings → Secrets and variables → Actions → New repositor
 | `RECIPIENTS` | *(optional)* comma-separated recipients; defaults to `GMAIL_USERNAME` |
 
 Optional **Variables** (same page, *Variables* tab) to tweak without editing code:
-`NUM_STORIES` (default `30`), `GEMINI_MODEL` (default [`gemini-3.5-flash`](https://ai.google.dev/gemini-api/docs/models/gemini-3.5-flash)).
+`NUM_STORIES` (default `30`), `GEMINI_MODEL` (default [`gemini-3.6-flash`](https://ai.google.dev/gemini-api/docs/models/gemini-3.6-flash)).
 
 > **Model not available?** Gemini model IDs change over time. If a run fails with
 > a `404 ... model is no longer available` error, list what your key supports and
 > set `GEMINI_MODEL` to one of them:
 >
 > ```bash
-> GEMINI_API_KEY=your-key python -m src.list_models
+> GEMINI_API_KEY=your-key uv run python -m src.list_models
 > ```
 
 ### 5. Test it
@@ -136,17 +143,19 @@ The whole digest runs as a plain Python script, so you can generate or send it
 from your own machine with no GitHub Actions involved. You only need a Gemini API
 key; Gmail credentials are needed solely for the real send.
 
+Dependencies are managed with [uv](https://docs.astral.sh/uv/) (install it first,
+then run):
+
 ```bash
-python -m venv .venv && source .venv/bin/activate
-pip install -r requirements.txt
+uv sync                   # creates a virtualenv from uv.lock
 cp .env.example .env      # then fill in your keys
 
 # Preview only: writes output/digest.html and sends nothing.
 # Needs just GEMINI_API_KEY. Open the file in a browser to see the result.
-DRY_RUN=true python main.py
+DRY_RUN=true uv run python main.py
 
 # Send for real (needs GMAIL_USERNAME + GMAIL_APP_PASSWORD too).
-python main.py
+uv run python main.py
 ```
 
 This is exactly what the GitHub Action does; it just runs the same `python
@@ -178,7 +187,7 @@ All settings are environment variables (see [`.env.example`](.env.example)):
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `GEMINI_API_KEY` | — | Gemini API key (required) |
-| `GEMINI_MODEL` | `gemini-3.5-flash` | Model used for summaries |
+| `GEMINI_MODEL` | `gemini-3.6-flash` | Model used for summaries |
 | `GMAIL_USERNAME` | — | Sender Gmail address |
 | `GMAIL_APP_PASSWORD` | — | Gmail app password |
 | `RECIPIENTS` | sender | Comma-separated recipients |
@@ -199,7 +208,7 @@ All settings are environment variables (see [`.env.example`](.env.example)):
   batches (`BATCH_SIZE`, default 8), so 30 stories cost only ~4 requests. If you
   still see `429` retries, lower `BATCH_SIZE` or raise `REQUEST_DELAY_SECONDS`.
 - **`404 model not available`?** Model IDs get deprecated. Run
-  `python -m src.list_models` and set the `GEMINI_MODEL` variable to a listed one.
+  `uv run python -m src.list_models` and set the `GEMINI_MODEL` variable to a listed one.
 - **Some articles won't be fetched** (paywalls, JS-only, PDFs, videos). The
   summary then falls back to the title + HN comments, which is usually enough.
 - **Email in spam?** Mark it "not spam" once; sending to yourself is very reliable.

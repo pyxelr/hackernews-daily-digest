@@ -40,7 +40,7 @@ def _get_bool(name: str, default: bool) -> bool:
 class Config:
     # --- AI (Google Gemini) ---
     gemini_api_key: str = field(default_factory=lambda: os.getenv("GEMINI_API_KEY", ""))
-    gemini_model: str = field(default_factory=lambda: os.getenv("GEMINI_MODEL", "gemini-3.5-flash"))
+    gemini_model: str = field(default_factory=lambda: os.getenv("GEMINI_MODEL", "gemini-3.6-flash"))
 
     # --- Email (Gmail SMTP) ---
     gmail_username: str = field(default_factory=lambda: os.getenv("GMAIL_USERNAME", ""))
