@@ -5,7 +5,18 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [1.0.4] - 2026-08-14
+
+### Changed
+
+- Default Gemini model bumped to `gemini-3.7-flash` (still free-tier eligible).
+- Locked dependencies refreshed (`uv lock --upgrade`).
+
+### Added
+
+- The summarizer logs which model actually served the request
+  (`Requested '<id>', served by '<model_version>'`), so a CI run log shows the
+  real model behind a digest even when the configured ID is an alias.
 
 ## [1.0.3] - 2026-07-22
 
@@ -80,7 +91,7 @@ Initial release: a completely free, self-hosted daily Hacker News email digest.
 - `src/list_models.py` helper to list the Gemini models available to your API key.
 - Sample rendered digest and a screenshot in `docs/`.
 
-[Unreleased]: https://github.com/pyxelr/hackernews-daily-digest/compare/v1.0.3...HEAD
+[1.0.4]: https://github.com/pyxelr/hackernews-daily-digest/compare/v1.0.3...v1.0.4
 [1.0.3]: https://github.com/pyxelr/hackernews-daily-digest/compare/v1.0.2...v1.0.3
 [1.0.2]: https://github.com/pyxelr/hackernews-daily-digest/compare/v1.0.1...v1.0.2
 [1.0.1]: https://github.com/pyxelr/hackernews-daily-digest/compare/v1.0.0...v1.0.1

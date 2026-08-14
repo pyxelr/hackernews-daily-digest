@@ -109,7 +109,7 @@ In your repo: **Settings → Secrets and variables → Actions → New repositor
 | `RECIPIENTS` | *(optional)* comma-separated recipients; defaults to `GMAIL_USERNAME` |
 
 Optional **Variables** (same page, *Variables* tab) to tweak without editing code:
-`NUM_STORIES` (default `30`), `GEMINI_MODEL` (default [`gemini-3.6-flash`](https://ai.google.dev/gemini-api/docs/models/gemini-3.6-flash)).
+`NUM_STORIES` (default `30`), `GEMINI_MODEL` (default [`gemini-3.7-flash`](https://ai.google.dev/gemini-api/docs/models/gemini-3.7-flash)).
 
 > **Model not available?** Gemini model IDs change over time. If a run fails with
 > a `404 ... model is no longer available` error, list what your key supports and
@@ -187,7 +187,7 @@ All settings are environment variables (see [`.env.example`](.env.example)):
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `GEMINI_API_KEY` | — | Gemini API key (required) |
-| `GEMINI_MODEL` | `gemini-3.6-flash` | Model used for summaries |
+| `GEMINI_MODEL` | `gemini-3.7-flash` | Model used for summaries |
 | `GMAIL_USERNAME` | — | Sender Gmail address |
 | `GMAIL_APP_PASSWORD` | — | Gmail app password |
 | `RECIPIENTS` | sender | Comma-separated recipients |

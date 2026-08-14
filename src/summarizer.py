@@ -66,6 +66,7 @@ class Summarizer:
         self._delay = delay
         self._max_retries = max_retries
         self._batch_size = max(1, batch_size)
+        self._logged_version = False
 
     def _build_batch_prompt(self, batch: list[tuple[int, Story, str, list[str]]]) -> str:
         parts: list[str] = ["Summarize each of the following stories.\n"]
@@ -91,6 +92,13 @@ class Summarizer:
                 resp = self._client.models.generate_content(
                     model=self._model, contents=prompt, config=config
                 )
+                # A model ID can be an alias (e.g. "-latest") that resolves to a
+                # dated build, so log what actually served the first request --
+                # the only reliable record of which model wrote the summaries.
+                if not self._logged_version:
+                    self._logged_version = True
+                    served = getattr(resp, "model_version", None)
+                    print(f"    Requested '{self._model}', served by '{served or 'unknown'}'")
                 data = json.loads(resp.text or "[]")
                 if isinstance(data, list):
                     return data
