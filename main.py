@@ -10,6 +10,7 @@ from __future__ import annotations
 import contextlib
 import os
 import sys
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
@@ -31,9 +32,13 @@ def log_group(title: str):
     """
     in_actions = os.getenv("GITHUB_ACTIONS", "") == "true"
     print(f"::group::{title}" if in_actions else f"\n=== {title} ===")
+    started = time.monotonic()
     try:
         yield
     finally:
+        # Printed even when the phase raises: knowing which phase ran long is
+        # the first question to ask of any slow or killed run.
+        print(f"  ({title}: {time.monotonic() - started:.1f}s)")
         if in_actions:
             print("::endgroup::")
 
@@ -127,6 +132,8 @@ def build_digest() -> tuple[list[hn_client.Story], dict[int, str], datetime]:
             delay=config.request_delay_seconds,
             max_retries=config.max_retries,
             batch_size=config.batch_size,
+            request_timeout=config.gemini_timeout_seconds,
+            deadline_seconds=config.summary_deadline_seconds,
         )
         summaries = summarizer.summarize_all(jobs)
 

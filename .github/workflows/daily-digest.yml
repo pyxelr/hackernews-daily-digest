@@ -23,7 +23,10 @@ on:
 jobs:
   send-digest:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    # Generous outer bound only. The script enforces its own, much tighter
+    # budgets (Gemini request timeout + summarization deadline), so hitting this
+    # should mean something is genuinely wrong rather than merely slow.
+    timeout-minutes: 30
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -42,6 +45,12 @@ jobs:
 
       - name: Build and send digest
         env:
+          # Actions gives the step a pipe, so Python block-buffers stdout and
+          # holds every log line until the process exits. If the job is then
+          # killed (timeout, cancellation), the whole buffer is discarded and
+          # the run log is blank -- exactly what made the 2026-08-27 timeout
+          # impossible to diagnose. Unbuffered output streams as it happens.
+          PYTHONUNBUFFERED: "1"
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           GEMINI_MODEL: ${{ vars.GEMINI_MODEL || 'gemini-3.7-flash' }}
           GMAIL_USERNAME: ${{ secrets.GMAIL_USERNAME }}

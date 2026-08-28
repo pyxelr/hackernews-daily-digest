@@ -60,12 +60,21 @@ class Summarizer:
         delay: float,
         max_retries: int,
         batch_size: int = 8,
+        request_timeout: int = 90,
+        deadline_seconds: int = 600,
     ):
-        self._client = genai.Client(api_key=api_key)
+        # HttpOptions.timeout is in *milliseconds*. It must be set explicitly:
+        # the SDK's default of None means httpx never gives up on a stalled
+        # response, which is how a single bad request can burn a whole CI job.
+        self._client = genai.Client(
+            api_key=api_key,
+            http_options=types.HttpOptions(timeout=max(1, request_timeout) * 1000),
+        )
         self._model = model
         self._delay = delay
-        self._max_retries = max_retries
+        self._max_retries = max(1, max_retries)
         self._batch_size = max(1, batch_size)
+        self._deadline_seconds = max(1, deadline_seconds)
         self._logged_version = False
 
     def _build_batch_prompt(self, batch: list[tuple[int, Story, str, list[str]]]) -> str:
@@ -80,7 +89,14 @@ class Summarizer:
             )
         return "\n".join(parts)
 
-    def _generate_batch(self, prompt: str) -> list[dict]:
+    def _generate_batch(self, prompt: str, deadline: float) -> list[dict]:
+        """Summarize one batch, retrying transient errors until ``deadline``.
+
+        ``deadline`` is a ``time.monotonic()`` reading shared by every batch, so
+        a slow Gemini eats into the retry budget of later batches rather than
+        multiplying it: total time here is bounded no matter how badly the API
+        misbehaves.
+        """
         last_error: Exception | None = None
         config = types.GenerateContentConfig(
             system_instruction=_SYSTEM_INSTRUCTION,
@@ -111,8 +127,22 @@ class Summarizer:
             except Exception as exc:
                 last_error = exc
 
+            # Sleeping after the final attempt just burns time -- nothing will
+            # consume the result.
+            if attempt == self._max_retries - 1:
+                break
+
             backoff = max(self._delay, 4) * (2**attempt)
-            print(f"    Gemini retry {attempt + 1}/{self._max_retries} in {backoff:.0f}s ({last_error})")
+            remaining = deadline - time.monotonic()
+            if backoff >= remaining:
+                raise RuntimeError(
+                    f"Gemini batch abandoned after {attempt + 1} attempt(s): next retry needs "
+                    f"{backoff:.0f}s but only {max(remaining, 0):.0f}s of budget is left "
+                    f"(last error: {last_error})"
+                )
+            print(
+                f"    Gemini retry {attempt + 1}/{self._max_retries - 1} in {backoff:.0f}s ({last_error})"
+            )
             time.sleep(backoff)
 
         raise RuntimeError(f"Gemini batch failed after {self._max_retries} attempts: {last_error}")
@@ -121,21 +151,37 @@ class Summarizer:
         """Summarize every story in batches. Returns {story_id: summary}.
 
         A failed batch falls back to minimal per-story summaries so one bad batch
-        never breaks the whole digest.
+        never breaks the whole digest. The phase as a whole is bounded by
+        ``deadline_seconds``: once that budget is gone the remaining batches skip
+        Gemini entirely and take the fallback, because a digest with some
+        placeholder summaries beats no digest at all.
         """
         summaries: dict[int, str] = {}
         indexed = list(enumerate(jobs))  # global index -> (story, text, comments)
         batches = [
             indexed[i : i + self._batch_size] for i in range(0, len(indexed), self._batch_size)
         ]
+        deadline = time.monotonic() + self._deadline_seconds
 
         for batch_no, chunk in enumerate(batches, start=1):
             batch = [(idx, s, t, c) for idx, (s, t, c) in chunk]
+
+            if time.monotonic() >= deadline:
+                skipped = batches[batch_no - 1 :]
+                print(
+                    f"  ! Out of time after {self._deadline_seconds}s; falling back on the "
+                    f"last {len(skipped)} of {len(batches)} batches"
+                )
+                for rest in skipped:
+                    for _, (story, _, _) in rest:
+                        summaries[story.id] = _fallback_summary(story)
+                break
+
             titles = ", ".join(s.title[:30] for _, s, _, _ in batch[:2])
             print(f"  Batch {batch_no}/{len(batches)} ({len(batch)} stories): {titles}...")
 
             try:
-                results = self._generate_batch(self._build_batch_prompt(batch))
+                results = self._generate_batch(self._build_batch_prompt(batch), deadline)
                 by_index = {
                     int(r["index"]): str(r["summary"]).strip()
                     for r in results
@@ -150,6 +196,7 @@ class Summarizer:
                 summaries[story.id] = summary if summary else _fallback_summary(story)
 
             if batch_no < len(batches) and self._delay > 0:
-                time.sleep(self._delay)
+                # Never let the free-tier pacing sleep push us past the budget.
+                time.sleep(min(self._delay, max(deadline - time.monotonic(), 0)))
 
         return summaries

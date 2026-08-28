@@ -5,6 +5,42 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.0] - 2026-08-28
+
+### Fixed
+
+- Scheduled runs could hang until the CI job timeout killed them, sending no
+  digest at all. The `google-genai` SDK ships with no default request timeout
+  (`http_options.timeout` is `None`, which httpx reads as "wait forever"), so a
+  single stalled Gemini connection blocked the run indefinitely. Every request
+  is now capped by `GEMINI_TIMEOUT_SECONDS`.
+- A killed run left a completely empty log, making the failure impossible to
+  diagnose. GitHub Actions hands the step a pipe, so Python block-buffered
+  stdout and the entire buffer was discarded along with the process. The
+  workflow now sets `PYTHONUNBUFFERED=1`.
+- Article fetching could stall forever on a server that dribbles out bytes:
+  `requests`' `timeout` bounds each socket read, not the call as a whole. Bodies
+  are now streamed under a hard per-URL wall-clock deadline and a 2 MB size cap,
+  which also bounds the concurrent fetch phase.
+- The Gemini retry loop slept through its final backoff (up to 48s) before
+  giving up, even though no attempt remained to use it.
+
+### Added
+
+- `GEMINI_TIMEOUT_SECONDS` (default 90): hard cap on a single Gemini request.
+- `SUMMARY_DEADLINE_SECONDS` (default 600): total wall-clock budget for the
+  summarization phase, retry backoff included. Once spent, the remaining batches
+  take placeholder summaries, so a degraded Gemini delays the digest instead of
+  losing it.
+- Each log phase reports its elapsed time, including when it fails.
+
+### Changed
+
+- Job `timeout-minutes` raised from 20 to 30. It is now only an outer backstop,
+  since the script enforces much tighter budgets of its own.
+- Article HTML is handed to BeautifulSoup as bytes, so the encoding is read from
+  the page's `<meta charset>` rather than guessed from the Content-Type header.
+
 ## [1.0.4] - 2026-08-14
 
 ### Changed
@@ -91,6 +127,7 @@ Initial release: a completely free, self-hosted daily Hacker News email digest.
 - `src/list_models.py` helper to list the Gemini models available to your API key.
 - Sample rendered digest and a screenshot in `docs/`.
 
+[1.1.0]: https://github.com/pyxelr/hackernews-daily-digest/compare/v1.0.4...v1.1.0
 [1.0.4]: https://github.com/pyxelr/hackernews-daily-digest/compare/v1.0.3...v1.0.4
 [1.0.3]: https://github.com/pyxelr/hackernews-daily-digest/compare/v1.0.2...v1.0.3
 [1.0.2]: https://github.com/pyxelr/hackernews-daily-digest/compare/v1.0.1...v1.0.2

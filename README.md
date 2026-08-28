@@ -200,6 +200,8 @@ All settings are environment variables (see [`.env.example`](.env.example)):
 | `RUN_ONLY_AT_LOCAL_HOUR` | *(empty)* | DST guard: only run at this local hour on schedule |
 | `FETCH_ARTICLES` | `true` | Also fetch article bodies for context |
 | `REQUEST_DELAY_SECONDS` | `6` | Pause between Gemini batches (free-tier pacing) |
+| `GEMINI_TIMEOUT_SECONDS` | `90` | Hard cap on a single Gemini request |
+| `SUMMARY_DEADLINE_SECONDS` | `600` | Total budget for summarizing; then fall back |
 | `DRY_RUN` | `false` | Write HTML file instead of emailing |
 
 ## Notes & troubleshooting
@@ -212,6 +214,13 @@ All settings are environment variables (see [`.env.example`](.env.example)):
 - **Some articles won't be fetched** (paywalls, JS-only, PDFs, videos). The
   summary then falls back to the title + HN comments, which is usually enough.
 - **Email in spam?** Mark it "not spam" once; sending to yourself is very reliable.
-- **Scheduled runs can be delayed** by GitHub during peak load (we have seen a
-  couple of hours); this is normal GitHub Actions behaviour, not a bug here. The
-  digest still sends that day, just later.
+- **Scheduled runs can be delayed** by GitHub during peak load, and occasionally
+  skipped altogether. Roughly 40 minutes late is typical here; we have also seen
+  11 hours, and days with no run at all. `schedule` is best-effort and GitHub
+  offers no delivery guarantee, so this is normal Actions behaviour rather than a
+  bug in the digest. Run the workflow manually from the Actions tab to catch up.
+- **A run that seems stuck** is bounded from two directions: every Gemini request
+  gives up after `GEMINI_TIMEOUT_SECONDS`, and the whole summarization phase after
+  `SUMMARY_DEADLINE_SECONDS`, after which remaining stories get placeholder
+  summaries so the email still goes out. The job's own `timeout-minutes: 30` is
+  only an outer backstop; reaching it means something is genuinely wrong.

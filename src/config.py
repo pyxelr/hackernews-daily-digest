@@ -70,6 +70,21 @@ class Config:
     )
     max_retries: int = field(default_factory=lambda: _get_int("MAX_RETRIES", 4))
 
+    # --- Gemini time budgets ---
+    # Hard cap on a single Gemini HTTP request. The google-genai SDK ships with
+    # *no* default timeout (http_options.timeout is None, which httpx reads as
+    # "wait forever"), so without this one stalled connection hangs the whole
+    # run until the CI job timeout kills it.
+    gemini_timeout_seconds: int = field(
+        default_factory=lambda: _get_int("GEMINI_TIMEOUT_SECONDS", 90)
+    )
+    # Wall-clock budget for the entire summarization phase, retry backoff
+    # included. When it runs out, the remaining batches fall back to placeholder
+    # summaries so a degraded Gemini delays the digest instead of losing it.
+    summary_deadline_seconds: int = field(
+        default_factory=lambda: _get_int("SUMMARY_DEADLINE_SECONDS", 600)
+    )
+
     # --- Display ---
     # IANA timezone for timestamps shown in the email (e.g. "Europe/Warsaw",
     # "America/New_York", "UTC"). https://en.wikipedia.org/wiki/List_of_tz_database_time_zones
