@@ -5,6 +5,25 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.0] - 2026-08-28
+
+### Added
+
+- `GEMINI_FALLBACK_MODELS` (default `gemini-3.6-flash`): comma-separated models
+  tried in order when the preferred one is unavailable. On 2026-08-28
+  `gemini-3.7-flash` returned `503 UNAVAILABLE` for every batch across several
+  hours, which produced a complete digest in which all 30 summaries were
+  `(summary unavailable)`. A single unhealthy model ID no longer empties the
+  digest.
+
+### Changed
+
+- Once a model is exhausted the run switches to the next one and stays there for
+  the remaining batches, rather than re-probing a model that just failed every
+  retry and spending the shared time budget again on each batch.
+- Retry and failure logs name the model they refer to, so a run that switched
+  mid-flight is readable after the fact.
+
 ## [1.1.0] - 2026-08-28
 
 ### Fixed
@@ -127,6 +146,7 @@ Initial release: a completely free, self-hosted daily Hacker News email digest.
 - `src/list_models.py` helper to list the Gemini models available to your API key.
 - Sample rendered digest and a screenshot in `docs/`.
 
+[1.2.0]: https://github.com/pyxelr/hackernews-daily-digest/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/pyxelr/hackernews-daily-digest/compare/v1.0.4...v1.1.0
 [1.0.4]: https://github.com/pyxelr/hackernews-daily-digest/compare/v1.0.3...v1.0.4
 [1.0.3]: https://github.com/pyxelr/hackernews-daily-digest/compare/v1.0.2...v1.0.3

@@ -62,6 +62,7 @@ class Summarizer:
         batch_size: int = 8,
         request_timeout: int = 90,
         deadline_seconds: int = 600,
+        fallback_models: list[str] | None = None,
     ):
         # HttpOptions.timeout is in *milliseconds*. It must be set explicitly:
         # the SDK's default of None means httpx never gives up on a stalled
@@ -70,12 +71,20 @@ class Summarizer:
             api_key=api_key,
             http_options=types.HttpOptions(timeout=max(1, request_timeout) * 1000),
         )
-        self._model = model
+        # Preferred model first, then alternates to try if it is unavailable.
+        # dict.fromkeys de-duplicates while preserving order, so listing the
+        # primary again among the fallbacks is harmless.
+        self._models = list(dict.fromkeys([model, *(fallback_models or [])]))
+        self._model_idx = 0
         self._delay = delay
         self._max_retries = max(1, max_retries)
         self._batch_size = max(1, batch_size)
         self._deadline_seconds = max(1, deadline_seconds)
         self._logged_version = False
+
+    @property
+    def _model(self) -> str:
+        return self._models[self._model_idx]
 
     def _build_batch_prompt(self, batch: list[tuple[int, Story, str, list[str]]]) -> str:
         parts: list[str] = ["Summarize each of the following stories.\n"]
@@ -90,7 +99,31 @@ class Summarizer:
         return "\n".join(parts)
 
     def _generate_batch(self, prompt: str, deadline: float) -> list[dict]:
-        """Summarize one batch, retrying transient errors until ``deadline``.
+        """Summarize one batch, falling through the configured models in order.
+
+        When a model is exhausted -- typically a sustained 503 while Google
+        rebalances capacity for a popular ID -- we move to the next one and
+        *stay* there. Re-probing a model that just failed every retry would burn
+        the shared budget again on every remaining batch for no benefit.
+        """
+        last_error: Exception | None = None
+        while True:
+            try:
+                return self._generate_with(self._model, prompt, deadline)
+            except Exception as exc:
+                last_error = exc
+
+            exhausted = self._model
+            out_of_models = self._model_idx + 1 >= len(self._models)
+            if out_of_models or time.monotonic() >= deadline:
+                raise RuntimeError(f"Gemini batch failed on '{exhausted}': {last_error}")
+
+            self._model_idx += 1
+            self._logged_version = False  # log which build serves the new model
+            print(f"    ! '{exhausted}' unavailable, switching to '{self._model}'")
+
+    def _generate_with(self, model: str, prompt: str, deadline: float) -> list[dict]:
+        """Try one model, retrying transient errors until ``deadline``.
 
         ``deadline`` is a ``time.monotonic()`` reading shared by every batch, so
         a slow Gemini eats into the retry budget of later batches rather than
@@ -106,7 +139,7 @@ class Summarizer:
         for attempt in range(self._max_retries):
             try:
                 resp = self._client.models.generate_content(
-                    model=self._model, contents=prompt, config=config
+                    model=model, contents=prompt, config=config
                 )
                 # A model ID can be an alias (e.g. "-latest") that resolves to a
                 # dated build, so log what actually served the first request --
@@ -114,7 +147,7 @@ class Summarizer:
                 if not self._logged_version:
                     self._logged_version = True
                     served = getattr(resp, "model_version", None)
-                    print(f"    Requested '{self._model}', served by '{served or 'unknown'}'")
+                    print(f"    Requested '{model}', served by '{served or 'unknown'}'")
                 data = json.loads(resp.text or "[]")
                 if isinstance(data, list):
                     return data
@@ -141,11 +174,12 @@ class Summarizer:
                     f"(last error: {last_error})"
                 )
             print(
-                f"    Gemini retry {attempt + 1}/{self._max_retries - 1} in {backoff:.0f}s ({last_error})"
+                f"    '{model}' retry {attempt + 1}/{self._max_retries - 1} in "
+                f"{backoff:.0f}s ({last_error})"
             )
             time.sleep(backoff)
 
-        raise RuntimeError(f"Gemini batch failed after {self._max_retries} attempts: {last_error}")
+        raise RuntimeError(f"failed after {self._max_retries} attempts: {last_error}")
 
     def summarize_all(self, jobs: list[tuple[Story, str, list[str]]]) -> dict[int, str]:
         """Summarize every story in batches. Returns {story_id: summary}.

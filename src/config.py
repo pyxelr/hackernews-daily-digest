@@ -41,6 +41,13 @@ class Config:
     # --- AI (Google Gemini) ---
     gemini_api_key: str = field(default_factory=lambda: os.getenv("GEMINI_API_KEY", ""))
     gemini_model: str = field(default_factory=lambda: os.getenv("GEMINI_MODEL", "gemini-3.7-flash"))
+    # Comma-separated models to try, in order, when the preferred one is
+    # unavailable. A popular model ID can 503 for hours while Google rebalances
+    # capacity; without an alternate, every story silently falls back to a
+    # placeholder summary and the digest goes out empty.
+    gemini_fallback_models_raw: str = field(
+        default_factory=lambda: os.getenv("GEMINI_FALLBACK_MODELS", "gemini-3.6-flash")
+    )
 
     # --- Email (Gmail SMTP) ---
     gmail_username: str = field(default_factory=lambda: os.getenv("GMAIL_USERNAME", ""))
@@ -106,6 +113,10 @@ class Config:
     # --- Run mode ---
     # When true, write the rendered email to output/ instead of sending it.
     dry_run: bool = field(default_factory=lambda: _get_bool("DRY_RUN", False))
+
+    @property
+    def gemini_fallback_models(self) -> list[str]:
+        return [m.strip() for m in self.gemini_fallback_models_raw.split(",") if m.strip()]
 
     @property
     def recipients(self) -> list[str]:
