@@ -5,6 +5,29 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.1] - 2026-09-03
+
+### Changed
+
+- Default model is now `gemini-3.8-flash`, and `GEMINI_FALLBACK_MODELS`
+  defaults to three alternates (`gemini-3.7-flash`, `gemini-3.6-flash`,
+  `gemini-3.5-flash`) rather than one. Capacity pressure turns out to hit the
+  whole Flash line at once, not a single model ID: a digest on 2026-09-03 saw
+  eight `503`s walk through both configured models and still lose a batch, with
+  no `429`s anywhere, so quota was never involved.
+- `MAX_RETRIES` drops from 4 to 2. A model answering `503` for capacity does not
+  recover in the seconds a retry waits, so moving to the next model beats
+  hammering the current one. It also keeps the longer chain affordable: four
+  models at four attempts each would need roughly 1180s of the 600s budget, so
+  the first batch would have starved the rest.
+
+### Fixed
+
+- A batch now survives any single healthy model in the chain. Previously, with
+  one fallback, both models being unavailable meant placeholder summaries; the
+  digest now walks down to the last alternate and still returns full summaries.
+  Total failure also costs about 60s instead of exhausting the time budget.
+
 ## [1.2.0] - 2026-08-28
 
 ### Added
@@ -146,6 +169,7 @@ Initial release: a completely free, self-hosted daily Hacker News email digest.
 - `src/list_models.py` helper to list the Gemini models available to your API key.
 - Sample rendered digest and a screenshot in `docs/`.
 
+[1.2.1]: https://github.com/pyxelr/hackernews-daily-digest/compare/v1.2.0...v1.2.1
 [1.2.0]: https://github.com/pyxelr/hackernews-daily-digest/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/pyxelr/hackernews-daily-digest/compare/v1.0.4...v1.1.0
 [1.0.4]: https://github.com/pyxelr/hackernews-daily-digest/compare/v1.0.3...v1.0.4

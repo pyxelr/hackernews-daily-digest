@@ -40,13 +40,15 @@ def _get_bool(name: str, default: bool) -> bool:
 class Config:
     # --- AI (Google Gemini) ---
     gemini_api_key: str = field(default_factory=lambda: os.getenv("GEMINI_API_KEY", ""))
-    gemini_model: str = field(default_factory=lambda: os.getenv("GEMINI_MODEL", "gemini-3.7-flash"))
+    gemini_model: str = field(default_factory=lambda: os.getenv("GEMINI_MODEL", "gemini-3.8-flash"))
     # Comma-separated models to try, in order, when the preferred one is
     # unavailable. A popular model ID can 503 for hours while Google rebalances
     # capacity; without an alternate, every story silently falls back to a
     # placeholder summary and the digest goes out empty.
     gemini_fallback_models_raw: str = field(
-        default_factory=lambda: os.getenv("GEMINI_FALLBACK_MODELS", "gemini-3.6-flash")
+        default_factory=lambda: os.getenv(
+            "GEMINI_FALLBACK_MODELS", "gemini-3.7-flash,gemini-3.6-flash,gemini-3.5-flash"
+        )
     )
 
     # --- Email (Gmail SMTP) ---
@@ -75,7 +77,12 @@ class Config:
     request_delay_seconds: float = field(
         default_factory=lambda: float(os.getenv("REQUEST_DELAY_SECONDS", "6"))
     )
-    max_retries: int = field(default_factory=lambda: _get_int("MAX_RETRIES", 4))
+    # Deliberately low, because the fallback chain is the better lever. A model
+    # answering 503 for capacity will not recover in the seconds a retry waits,
+    # whereas a different model often answers first time. Four models at four
+    # attempts each would also take ~1180s of the 600s budget, so the first
+    # batch would starve the rest.
+    max_retries: int = field(default_factory=lambda: _get_int("MAX_RETRIES", 2))
 
     # --- Gemini time budgets ---
     # Hard cap on a single Gemini HTTP request. The google-genai SDK ships with

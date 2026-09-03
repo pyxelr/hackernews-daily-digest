@@ -109,7 +109,7 @@ In your repo: **Settings → Secrets and variables → Actions → New repositor
 | `RECIPIENTS` | *(optional)* comma-separated recipients; defaults to `GMAIL_USERNAME` |
 
 Optional **Variables** (same page, *Variables* tab) to tweak without editing code:
-`NUM_STORIES` (default `30`), `GEMINI_MODEL` (default [`gemini-3.7-flash`](https://ai.google.dev/gemini-api/docs/models/gemini-3.7-flash)).
+`NUM_STORIES` (default `30`), `GEMINI_MODEL` (default [`gemini-3.8-flash`](https://ai.google.dev/gemini-api/docs/models/gemini-3.8-flash)).
 
 > **Model not available?** Gemini model IDs change over time. If a run fails with
 > a `404 ... model is no longer available` error, list what your key supports and
@@ -187,8 +187,8 @@ All settings are environment variables (see [`.env.example`](.env.example)):
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `GEMINI_API_KEY` | — | Gemini API key (required) |
-| `GEMINI_MODEL` | `gemini-3.7-flash` | Model used for summaries |
-| `GEMINI_FALLBACK_MODELS` | `gemini-3.6-flash` | Comma-separated models tried if the above is unavailable |
+| `GEMINI_MODEL` | `gemini-3.8-flash` | Model used for summaries |
+| `GEMINI_FALLBACK_MODELS` | `gemini-3.7-flash,`<br>`gemini-3.6-flash,`<br>`gemini-3.5-flash` | Comma-separated models tried in order if the above is unavailable |
 | `GMAIL_USERNAME` | — | Sender Gmail address |
 | `GMAIL_APP_PASSWORD` | — | Gmail app password |
 | `RECIPIENTS` | sender | Comma-separated recipients |
@@ -212,11 +212,13 @@ All settings are environment variables (see [`.env.example`](.env.example)):
   still see `429` retries, lower `BATCH_SIZE` or raise `REQUEST_DELAY_SECONDS`.
 - **`404 model not available`?** Model IDs get deprecated. Run
   `uv run python -m src.list_models` and set the `GEMINI_MODEL` variable to a listed one.
-- **Every summary says `(summary unavailable)`?** The model was unreachable for the
-  whole run, usually a sustained `503` while Google rebalances capacity for a popular
-  ID. `GEMINI_FALLBACK_MODELS` exists for exactly this: the run switches to the next
-  model listed and stays there. If even the fallbacks are down, the digest still sends
-  with placeholders rather than failing.
+- **Some summaries say `(summary unavailable)`?** The models were unreachable for
+  that batch, usually a sustained `503` while Google rebalances capacity. This tends to
+  hit the whole Flash line at once rather than a single ID, so `GEMINI_FALLBACK_MODELS`
+  lists three alternates and the run walks down them. `MAX_RETRIES` is deliberately low
+  (2): a model answering `503` for capacity will not recover in the seconds a retry
+  waits, so moving to the next model beats hammering the current one. If every model is
+  down, the digest still sends with placeholders rather than failing.
 - **Some articles won't be fetched** (paywalls, JS-only, PDFs, videos). The
   summary then falls back to the title + HN comments, which is usually enough.
 - **Email in spam?** Mark it "not spam" once; sending to yourself is very reliable.
