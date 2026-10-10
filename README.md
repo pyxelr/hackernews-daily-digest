@@ -111,9 +111,11 @@ In your repo: **Settings → Secrets and variables → Actions → New repositor
 Optional **Variables** (same page, *Variables* tab) to tweak without editing code:
 `NUM_STORIES` (default `30`), `GEMINI_MODEL` (default [`gemini-3.8-flash`](https://ai.google.dev/gemini-api/docs/models/gemini-3.8-flash)).
 
-> **Model not available?** Gemini model IDs change over time. If a run fails with
-> a `404 ... model is no longer available` error, list what your key supports and
-> set `GEMINI_MODEL` to one of them:
+> **Model not available?** Gemini model IDs change over time (see the current
+> [models](https://ai.google.dev/gemini-api/docs/models) and the
+> [deprecation schedule](https://ai.google.dev/gemini-api/docs/deprecations)). If a run
+> fails with a `404 ... model is no longer available` error, list what your key
+> supports and set `GEMINI_MODEL` to one of them:
 >
 > ```bash
 > GEMINI_API_KEY=your-key uv run python -m src.list_models
@@ -188,7 +190,7 @@ All settings are environment variables (see [`.env.example`](.env.example)):
 |----------|---------|-------------|
 | `GEMINI_API_KEY` | — | Gemini API key (required) |
 | `GEMINI_MODEL` | `gemini-3.8-flash` | Model used for summaries |
-| `GEMINI_FALLBACK_MODELS` | `gemini-3.7-flash,`<br>`gemini-3.6-flash,`<br>`gemini-3.5-flash` | Comma-separated models tried in order if the above is unavailable |
+| `GEMINI_FALLBACK_MODELS` | `gemini-3.6-flash` | Comma-separated models tried in order if the above is unavailable |
 | `GMAIL_USERNAME` | — | Sender Gmail address |
 | `GMAIL_APP_PASSWORD` | — | Gmail app password |
 | `RECIPIENTS` | sender | Comma-separated recipients |
@@ -210,12 +212,14 @@ All settings are environment variables (see [`.env.example`](.env.example)):
 - **Gemini free-tier rate limits** are per-minute. Stories are summarized in
   batches (`BATCH_SIZE`, default 8), so 30 stories cost only ~4 requests. If you
   still see `429` retries, lower `BATCH_SIZE` or raise `REQUEST_DELAY_SECONDS`.
-- **`404 model not available`?** Model IDs get deprecated. Run
+- **`404 model not available`?** Model IDs get deprecated, and Google routes retired
+  ones to their successor (see the
+  [deprecation schedule](https://ai.google.dev/gemini-api/docs/deprecations)). Run
   `uv run python -m src.list_models` and set the `GEMINI_MODEL` variable to a listed one.
 - **Some summaries say `(summary unavailable)`?** The models were unreachable for
   that batch, usually a sustained `503` while Google rebalances capacity. This tends to
   hit the whole Flash line at once rather than a single ID, so `GEMINI_FALLBACK_MODELS`
-  lists three alternates and the run walks down them. `MAX_RETRIES` is deliberately low
+  lists an alternate model and the run switches to it. `MAX_RETRIES` is deliberately low
   (2): a model answering `503` for capacity will not recover in the seconds a retry
   waits, so moving to the next model beats hammering the current one. If every model is
   down, the digest still sends with placeholders rather than failing.

@@ -5,6 +5,20 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.2] - 2026-10-10
+
+### Changed
+
+- `GEMINI_FALLBACK_MODELS` now defaults to `gemini-3.6-flash` alone, down from
+  `gemini-3.7-flash`, `gemini-3.6-flash` and `gemini-3.5-flash`. Google now
+  routes `gemini-3.7-flash` to `gemini-3.8-flash` and `gemini-3.5-flash` to
+  `gemini-3.6-flash`, so the old chain was effectively `3.8`, `3.6`, `3.6`: two
+  of its three alternates re-tried a model that had already failed, spending
+  retries without any chance of a different outcome. The one remaining
+  alternate is a distinct model.
+- The README links the Gemini models page and the deprecation schedule, where
+  retired IDs and their replacements are tracked.
+
 ## [1.2.1] - 2026-09-03
 
 ### Changed
@@ -169,6 +183,7 @@ Initial release: a completely free, self-hosted daily Hacker News email digest.
 - `src/list_models.py` helper to list the Gemini models available to your API key.
 - Sample rendered digest and a screenshot in `docs/`.
 
+[1.2.2]: https://github.com/pyxelr/hackernews-daily-digest/compare/v1.2.1...v1.2.2
 [1.2.1]: https://github.com/pyxelr/hackernews-daily-digest/compare/v1.2.0...v1.2.1
 [1.2.0]: https://github.com/pyxelr/hackernews-daily-digest/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/pyxelr/hackernews-daily-digest/compare/v1.0.4...v1.1.0

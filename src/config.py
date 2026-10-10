@@ -44,11 +44,11 @@ class Config:
     # Comma-separated models to try, in order, when the preferred one is
     # unavailable. A popular model ID can 503 for hours while Google rebalances
     # capacity; without an alternate, every story silently falls back to a
-    # placeholder summary and the digest goes out empty.
+    # placeholder summary and the digest goes out empty. Google routes retired
+    # IDs to their successor (3.7 -> 3.8, 3.5 -> 3.6), so an alternate only
+    # helps if it is a distinct model.
     gemini_fallback_models_raw: str = field(
-        default_factory=lambda: os.getenv(
-            "GEMINI_FALLBACK_MODELS", "gemini-3.7-flash,gemini-3.6-flash,gemini-3.5-flash"
-        )
+        default_factory=lambda: os.getenv("GEMINI_FALLBACK_MODELS", "gemini-3.6-flash")
     )
 
     # --- Email (Gmail SMTP) ---
